@@ -1,6 +1,6 @@
 ---
 name: follow-up-page
-description: Alejandro's Nuve post-meeting recap page. After a call or demo with a contractor, builds their branded recap on GitHub Pages (their logo on the stat, what they told him, how Nuve fixes it, ROI calculator, their questions answered, agreed next steps, booking) and returns the link plus a follow-up text. Use for /follow-up-page, "make a follow-up for [company]", or "recap page for my meeting with [name]".
+description: Alejandro's Nuve post-meeting recap page. After a call or demo with a contractor, builds their branded recap on GitHub Pages (their logo on the stat, what they told him, how Nuve fixes it, ROI calculator, their questions answered, agreed next steps, booking) and returns the link (also DMed to Alejandro in Slack) plus a follow-up text. Use for /follow-up-page, "make a follow-up for [company]", or "recap page for my meeting with [name]".
 ---
 # Nuve follow-up recap page
 
@@ -48,5 +48,16 @@ Everything lives in the repo **NuveAE/Nuve** (GitHub Pages, branch `main`, root)
 
 8. **Hand back** the link and a follow-up text in Alejandro's voice that references the meeting, short:
    > <First>, great talking <when>. Put everything we covered in one place for <Short>, including what it's worth on your numbers: <link>. Next step is <first agreed step>, want to lock in a time?
+   (Drop "including what it's worth on your numbers" when the page was built with `--no-calc`.)
 
    Offer a short email version too. If HubSpot is connected, offer (don't do it unasked) to log a note on the contact with the link.
+
+   Then **DM the link to Alejandro in Slack** (message to himself, user ID `U0BB33EQQAY`, via the Slack connector's send-message tool with that ID as the channel). Format:
+   ```
+   **Recap page ready: <First Last> · <Company>**
+   <link>
+
+   Text to send (<prospect phone from HubSpot, if any>):
+   > <the ready-to-send text>
+   ```
+   Send it only after the link is pushed. If Slack isn't connected, say so and just give the link in chat.

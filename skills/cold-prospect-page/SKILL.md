@@ -1,6 +1,6 @@
 ---
 name: cold-prospect-page
-description: Alejandro's Nuve cold-outreach demo page. Puts a contractor's logo on the Nuve stat, builds their personalized phone page on GitHub Pages, and returns the link plus a ready-to-send text. Use for /cold-prospect-page, "make a cold page for [company]", or a logo + "build their demo".
+description: Alejandro's Nuve cold-outreach demo page. Puts a contractor's logo on the Nuve stat, builds their personalized phone page on GitHub Pages, and returns the link (also DMed to Alejandro in Slack) plus a ready-to-send text. Use for /cold-prospect-page, "make a cold page for [company]", or a logo + "build their demo".
 ---
 # Nuve cold prospect page
 
@@ -38,3 +38,13 @@ Everything lives in the repo **NuveAE/Nuve** (GitHub Pages, branch `main`, root)
    > Hey <First>, Alejandro with Nuve. Made this for <Company>, it's your logo on the thermostat your customers would see every day: <link>. Worth 15 min?
 
    Also offer a one-line email version if he's emailing instead.
+
+   Then **DM the link to Alejandro in Slack** (message to himself, user ID `U0BB33EQQAY`, via the Slack connector's send-message tool with that ID as the channel). Format:
+   ```
+   **Cold page ready: <First Last> · <Company>**
+   <link>
+
+   Text to send (<prospect phone from HubSpot, if any>):
+   > <the ready-to-send text>
+   ```
+   Send it only after the link is pushed. If Slack isn't connected, say so and just give the link in chat.
