@@ -27,6 +27,7 @@ Everything lives in the repo **NuveAE/Nuve** (GitHub Pages, branch `main`, root)
    - `--next`: the steps you actually agreed on, `Step::detail|...`. If none were agreed, use: send logo → pick pilot installs → go live.
    - `--qa`: questions they asked with honest answers, `Question::Answer|...`. Only answer with what Alejandro said or what you know is true about Nuve; if unsure, leave that question out and flag it to him.
    - `--installs`: their installs + replacements per year if they mentioned it (seeds the calculator).
+   - `--no-calc` when the calculator's numbers don't fit them (e.g. no install volume or energy story to point to).
    - `--offer`: only if Alejandro actually offered something time-bound. Never invent urgency or pricing.
    - `--servicetitan` / `--plumbing` when true for them.
    - `--audience owner` when they aren't a contractor (property owners, rentals, venues, property managers). Swaps the lead/service-ticket copy and calculator for branding, messaging and run-time savings.

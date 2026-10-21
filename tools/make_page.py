@@ -353,6 +353,7 @@ def main():
     ap.add_argument('--next', default='', help='followup: agreed next steps, "Step::detail|Step"')
     ap.add_argument('--qa', default='', help='followup: questions they asked, "Question::Answer|..."')
     ap.add_argument('--installs', type=int, default=250, help='followup: installs + replacements per year, seeds the ROI calculator')
+    ap.add_argument('--no-calc', action='store_true', help='followup: leave out the "Your numbers" calculator section')
     ap.add_argument('--offer', default='', help='followup: time-bound note shown above the calendar')
     ap.add_argument('--keep-dark', action='store_true')
     ap.add_argument('--scale', type=float, default=1.0)
@@ -457,6 +458,10 @@ def main():
     for k in ('{{EXTRA_SECTIONS}}', '{{QA}}'):           # sections first, so their own placeholders get filled
         tpl = tpl.replace(k, rep.pop(k))
     for k, v in rep.items(): tpl = tpl.replace(k, v)
+    if args.no_calc:
+        tpl, n1 = re.subn(r'<section class="band reveal"><div class="wrap">\s*<div class="eyebrow">Your numbers</div>.*?</section>\s*', '', tpl, count=1, flags=re.S)
+        tpl, n2 = re.subn(r'  // ROI calculator.*?(?=  // testimonial dots)', '', tpl, count=1, flags=re.S)
+        if not (n1 and n2): raise SystemExit('--no-calc: calculator section not found in template')
     left = re.findall(r'\{\{[A-Z_0-9]+\}\}', tpl)
     if left: raise SystemExit(f'unfilled placeholders: {sorted(set(left))}')
     # cache-bust this page's own files so a rebuild shows up right away (same file names every build)

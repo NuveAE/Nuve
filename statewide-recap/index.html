@@ -273,24 +273,6 @@ footer a{color:#8b97a3}
   </div>
 </div></section>
 
-<section class="band reveal"><div class="wrap">
-  <div class="eyebrow">Your numbers</div>
-  <h2>What this is worth to Statewide.</h2>
-  <p>Slide these to match your properties. It's an estimate, so use your own numbers.</p>
-  <div class="calc" id="calc">
-    <label>Thermostats across your properties <output id="o-n"></output></label><input type="range" id="i-n" min="5" max="1000" step="5" value="100">
-    <label>Hours a week a space sits empty with HVAC running <output id="o-h"></output></label><input type="range" id="i-h" min="0" max="100" step="5" value="30">
-    <label>Cost to run one system for an hour <output id="o-c"></output></label><input type="range" id="i-c" min="0.2" max="3" step="0.05" value="0.6">
-    <label>Share of that you cut with schedules + remote control <output id="o-p"></output></label><input type="range" id="i-p" min="10" max="100" step="5" value="50">
-    <div class="res">
-      <div><b id="r-save">$0</b><span>a year in empty-room run time you stop paying for</span></div>
-      <div><b id="r-hrs">0</b><span>hours of empty-room cooling cut a year</span></div>
-      <div><b id="r-scr">0</b><span>screens you can message at once</span></div>
-    </div>
-    <small>Plus your logo in front of every guest, tenant and wedding party, every day.</small>
-  </div>
-</div></section>
-
 <section class="reveal"><div class="wrap">
   <div class="eyebrow">What you get</div>
   <h2>Built for owners with a lot of walls.</h2>
@@ -398,15 +380,6 @@ footer a{color:#8b97a3}
     bar.classList.toggle('show', y > 420 && b > window.innerHeight * 0.6);
   }
   window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
-  // ROI calculator
-  var $ = function(id){ return document.getElementById(id); };
-  var money = function(v){ return '$' + Math.round(v).toLocaleString(); };
-  function calc(){
-    var n=+$('i-n').value, h=+$('i-h').value, c=+$('i-c').value, p=+$('i-p').value/100, hrs=Math.round(n*h*52*p);
-    $('o-n').textContent=n.toLocaleString(); $('o-h').textContent=h+' hrs'; $('o-c').textContent='$'+c.toFixed(2); $('o-p').textContent=Math.round(p*100)+'%';
-    $('r-hrs').textContent=hrs.toLocaleString(); $('r-save').textContent=money(hrs*c); $('r-scr').textContent=n.toLocaleString();
-  }
-  ['i-n','i-h','i-c','i-p'].forEach(function(id){ $(id).addEventListener('input', calc); }); calc();
   // testimonial dots
   var rail = document.getElementById('rail'), dots = document.getElementById('dots'), n = rail.children.length;
   for (var i=0;i<n;i++) dots.appendChild(document.createElement('i'));

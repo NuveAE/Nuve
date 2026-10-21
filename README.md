@@ -32,7 +32,7 @@ plus `_check*.png` review images (not committed). List fields are `|`-separated;
 Link: `https://nuveae.github.io/Nuve/<slug>/`
 
 Options: `--slug`, `--short`, `--keep-dark`, `--scale 0.9`, `--nudge-x/--nudge-y`, `--color "#hex"`, `--tile-color`,
-`--audience owner` (follow-up for property/venue owners instead of contractors), `--no-videos`, `--plumbing` (water-sensor section), `--servicetitan` (Works with ServiceTitan section).
+`--no-calc` (drop the calculator), `--audience owner` (follow-up for property/venue owners instead of contractors), `--no-videos`, `--plumbing` (water-sensor section), `--servicetitan` (Works with ServiceTitan section).
 
 ## Where things are
 
