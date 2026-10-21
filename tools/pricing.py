@@ -16,9 +16,9 @@ FEATURES = [
     ('Sensor monitoring', 'Water leak and air/humidity sensors watched 24/7', 189),
 ]
 
-# (name, model line, price per unit, detail, badge)
+# (name, model line, price per unit, detail, badge, image in assets/)
 HARDWARE = [
-    ('V1', 'Sofia V1', 179, 'Branded with your logo and contact info', ''),
-    ('V2', 'Sofia AI V2', 279, 'Comes with 2 sensors: water leak + air/humidity', 'Most popular'),
-    ('V3', 'Sofia V3', 99, 'Pre-order now, ships Q1 2027', 'Pre-order'),
+    ('V1', 'Sofia V1', 179, 'Branded with your logo and contact info', '', 'stat-v1.png'),
+    ('V2', 'Sofia AI V2', 279, 'Comes with 2 sensors: water leak + air/humidity', 'Most popular', 'stat-v2.png'),
+    ('V3', 'Sofia Pro V3', 99, 'Pre-order now, ships Q1 2027', 'Pre-order', 'stat-v3.png'),
 ]

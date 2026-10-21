@@ -345,9 +345,10 @@ def pricing_html(short):
     m = lambda v: f'${v:,}'
     hw = ''.join(
         f'<div class="hw{" hot" if badge == "Most popular" else ""}">' + (f'<i>{html.escape(badge)}</i>' if badge else '') +
+        (f'<img loading="lazy" src="../assets/{img}" alt="{html.escape(model)} thermostat">' if img else '') +
         f'<span class="v">{html.escape(name)}</span><b>{m(price)}</b><small>/unit</small>'
         f'<h3>{html.escape(model)}</h3><p>{html.escape(detail)}</p></div>'
-        for name, model, price, detail, badge in P.HARDWARE)
+        for name, model, price, detail, badge, img in P.HARDWARE)
     inc = ''.join(f'<li>{html.escape(f)}</li>' for f, _, _ in P.FEATURES)
     rows = ''.join(f'<tr><td>{html.escape(f)}<span>{html.escape(d)}</span></td><td>{m(p)}<small>/mo</small></td></tr>'
                    for f, d, p in P.FEATURES)
