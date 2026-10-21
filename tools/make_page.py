@@ -338,6 +338,42 @@ def qa_html(qa):
             f'<h2>What you asked, answered.</h2><div class="faq">{qs}</div></div></section>\n\n')
 
 
+def pricing_html(short):
+    """Thermostats + Always On E vs a la carte, from tools/pricing.py."""
+    import pricing as P
+    alc = sum(p for _, _, p in P.FEATURES)
+    m = lambda v: f'${v:,}'
+    hw = ''.join(
+        f'<div class="hw{" hot" if badge == "Most popular" else ""}">' + (f'<i>{html.escape(badge)}</i>' if badge else '') +
+        f'<span class="v">{html.escape(name)}</span><b>{m(price)}</b><small>/unit</small>'
+        f'<h3>{html.escape(model)}</h3><p>{html.escape(detail)}</p></div>'
+        for name, model, price, detail, badge in P.HARDWARE)
+    inc = ''.join(f'<li>{html.escape(f)}</li>' for f, _, _ in P.FEATURES)
+    rows = ''.join(f'<tr><td>{html.escape(f)}<span>{html.escape(d)}</span></td><td>{m(p)}<small>/mo</small></td></tr>'
+                   for f, d, p in P.FEATURES)
+    return f"""<section class="reveal" id="pricing"><div class="wrap">
+  <div class="eyebrow">Pricing</div>
+  <h2>What it costs {short}.</h2>
+  <p>Pick your thermostats, then pick how you want to run the software. One flat monthly rate, no per-thermostat software fees.</p>
+  <h3 class="sub">Thermostats</h3>
+  <div class="hws">{hw}</div>
+  <h3 class="sub">Software</h3>
+  <div class="plan">
+    <i>Best value</i>
+    <div class="ph"><h3>{html.escape(P.PLAN_NAME)}</h3><span>Every feature, one price</span></div>
+    <div class="pp"><b>{m(P.PLAN_MONTHLY)}</b><small>/mo</small><s>{m(alc)}/mo à la carte</s></div>
+    <ul class="checks tight">{inc}</ul>
+    <div class="save">{m(alc - P.PLAN_MONTHLY)}/mo less than buying all {len(P.FEATURES)} features separately</div>
+  </div>
+  <details class="alc">
+    <summary><span><b>À la carte</b>Only want a few features? Build your own plan.</span></summary>
+    <table>{rows}<tr class="tot"><td>All {len(P.FEATURES)} features à la carte</td><td>{m(alc)}<small>/mo</small></td></tr></table>
+  </details>
+</div></section>
+
+"""
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', choices=['cold', 'followup'], default='cold')
@@ -364,6 +400,7 @@ def main():
     ap.add_argument('--no-videos', action='store_true', help='skip branding the app, stat and dashboard clips')
     ap.add_argument('--plumbing', action='store_true', help='add the water-sensor section with a branded "Smarter Protection" flyer')
     ap.add_argument('--servicetitan', action='store_true', help='add the "Works with ServiceTitan" section (they run on ServiceTitan)')
+    ap.add_argument('--pricing', action='store_true', help='followup: add the pricing section (thermostats, Always On E, a la carte) from tools/pricing.py')
     ap.add_argument('--short', help='short company name for section copy, e.g. "Apex" (default: --company)')
     args = ap.parse_args()
     if 'GITHUB_USER' == C.GITHUB_USER:
@@ -455,7 +492,9 @@ def main():
         extra.append(SERVICETITAN_HTML.replace('{{SHORT}}', short))
     rep['{{EXTRA_SECTIONS}}'] = ''.join(extra)
     rep['{{QA}}'] = qa_html(items(args.qa))
-    for k in ('{{EXTRA_SECTIONS}}', '{{QA}}'):           # sections first, so their own placeholders get filled
+    rep['{{PRICING}}'] = pricing_html(short) if args.pricing else ''
+    if args.pricing and '{{PRICING}}' not in tpl: raise SystemExit('--pricing: this template has no {{PRICING}} slot')
+    for k in ('{{EXTRA_SECTIONS}}', '{{PRICING}}', '{{QA}}'):           # sections first, so their own placeholders get filled
         tpl = tpl.replace(k, rep.pop(k))
     for k, v in rep.items(): tpl = tpl.replace(k, v)
     if args.no_calc:
