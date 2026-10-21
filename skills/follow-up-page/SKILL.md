@@ -29,6 +29,7 @@ Everything lives in the repo **NuveAE/Nuve** (GitHub Pages, branch `main`, root)
    - `--installs`: their installs + replacements per year if they mentioned it (seeds the calculator).
    - `--offer`: only if Alejandro actually offered something time-bound. Never invent urgency or pricing.
    - `--servicetitan` / `--plumbing` when true for them.
+   - `--audience owner` when they aren't a contractor (property owners, rentals, venues, property managers). Swaps the lead/service-ticket copy and calculator for branding, messaging and run-time savings.
 
 3. **Get the logo.** Reuse it from their cold page folder if one exists (`<slug>/stat.png` can't be reused, but the original logo file may be in the conversation or HubSpot); otherwise the attached file, else fetch from their site, else ask.
 

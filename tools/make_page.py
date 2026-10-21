@@ -341,6 +341,7 @@ def qa_html(qa):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--mode', choices=['cold', 'followup'], default='cold')
+    ap.add_argument('--audience', choices=['contractor', 'owner'], default='contractor', help='followup only: owner = property/venue owner copy (no contractor lead math)')
     ap.add_argument('--company', required=True)
     ap.add_argument('--logo')
     ap.add_argument('--slug')
@@ -414,7 +415,7 @@ def main():
         met = ''
     sms = urllib.parse.quote(sms_body)
     city_line = f' across {html.escape(args.city)}' if args.city else ''
-    tpl_name = 'template_followup.html' if args.mode == 'followup' else 'template_cold.html'
+    tpl_name = 'template_cold.html' if args.mode == 'cold' else ('template_followup_owner.html' if args.audience == 'owner' else 'template_followup.html')
     tpl = open(os.path.join(TOOLS, tpl_name), encoding='utf-8').read()
     short = html.escape(args.short or args.company)
     hook = f'<p class="hook">{html.escape(args.hook)}</p>' if args.hook else ''
