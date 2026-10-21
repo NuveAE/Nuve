@@ -1,0 +1,476 @@
+#!/usr/bin/env python3
+"""Build a personalized Nuve page for a prospect. Two kinds:
+
+  --mode cold      (default) cold-outreach demo: "here's your logo on the stat", book 15 min.
+  --mode followup  post-meeting recap: what they told us, how Nuve fixes it, ROI, agreed next steps.
+
+Cold:
+  python3 tools/make_page.py --company "Summit Heating & Air" --logo logo.png
+        [--city Phoenix] [--first Mike] [--hook "Saw you just added a second Phoenix truck"]
+
+Follow-up (pipe-separate list items; "Title::detail" adds a detail line):
+  python3 tools/make_page.py --mode followup --company "Summit Heating & Air" --logo logo.png
+        --first Mike --met "Tuesday"
+        --pains "Paying for leads twice::Google Ads is $120 a lead|Slow shoulder seasons"
+        --next "Send logo::we build your stat + app|Pick 10 pilot installs|Go live"
+        [--qa "How long to go live?::About two weeks after we get your logo"]
+        [--installs 300] [--offer "Pilot pricing held for you through Nov 15"]
+
+Shared options: [--slug] [--keep-dark] [--scale 1.0] [--nudge-x 0] [--nudge-y 0] [--color]
+  [--tile-color] [--no-videos] [--plumbing] [--servicetitan] [--short]
+Follow-up pages live at <slug>-recap/ by default so a cold page and a recap can both exist.
+
+Writes <repo>/<slug>/index.html, stat.png (hero), og.jpg (iMessage preview 1200x630)
+and _check.png (zoomed logo crop for review; not committed).
+With a logo it also brands the clips (tools/brand_videos.py): app.mp4/jpg (logo tiles),
+alerts.mp4/jpg (logo on the stat face) and dashboard.mp4/jpg (brand color + logo), plus
+_check_videos.png (one frame of each, for review; not committed). --color "#hex" overrides
+the dashboard color; --no-videos skips this and uses the stock clips.
+"""
+import argparse, html, os, re, urllib.parse
+from collections import deque
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+import brand_videos
+import config as C
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TOOLS = os.path.join(ROOT, 'tools')
+BASE_URL = C.BASE_URL
+PHONE = C.REP_PHONE_E164
+
+# stat_base.png geometry (532x543): screen circle + "YOUR LOGO HERE" box
+BOX = (196, 413, 337, 492)        # erase area (box + its glow)
+BOX_C = (266, 452)                # logo center
+LOGO_MAX = (150, 62)              # max logo w, h on the screen
+SCREEN = (0, 0, 0)
+UP = 2                            # work at 2x for crisp output
+
+
+def prep_logo(path, keep_dark=False):
+    """Remove a solid background (edge flood fill) and lift black parts to white."""
+    a = np.array(Image.open(path).convert('RGBA')).astype(int)
+    a[a[:, :, 3] < 20, 3] = 0
+    if (a[:, :, 3] == 0).mean() < 0.02:
+        h, w = a.shape[:2]
+        rgb = a[:, :, :3]
+        bg = np.median(np.array([rgb[0, 0], rgb[0, -1], rgb[-1, 0], rgb[-1, -1]]), axis=0)
+        close = np.abs(rgb - bg).sum(2) < 60
+        seen = np.zeros((h, w), bool); q = deque()
+        for x in range(w):
+            for y in (0, h - 1):
+                if close[y, x] and not seen[y, x]: seen[y, x] = True; q.append((y, x))
+        for y in range(h):
+            for x in (0, w - 1):
+                if close[y, x] and not seen[y, x]: seen[y, x] = True; q.append((y, x))
+        while q:
+            y, x = q.popleft()
+            for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                ny, nx = y + dy, x + dx
+                if 0 <= ny < h and 0 <= nx < w and close[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True; q.append((ny, nx))
+        a[seen, 3] = 0
+    if not keep_dark and not dark_ready(a):
+        a = lift_dark(a)
+    out = Image.fromarray(a.astype(np.uint8))
+    bb = out.getbbox()
+    if not bb:
+        raise SystemExit('Logo is empty after background removal; try --keep-dark.')
+    return out.crop(bb)
+
+
+def dark_ready(a):
+    """True when the logo is already made for dark backgrounds: its dark linework sits inside a
+    light outline (sticker style) instead of touching the transparent edge. Lifting those dark
+    lines to white would wash the logo out, so they're kept as-is."""
+    from scipy import ndimage as nd
+    rgb = a[:, :, :3].astype(float) / 255
+    lum = rgb[:, :, 0] * .2126 + rgb[:, :, 1] * .7152 + rgb[:, :, 2] * .0722
+    vis = a[:, :, 3] > 128
+    dark = vis & (lum < 0.25)
+    if dark.sum() < 0.01 * max(1, vis.sum()): return False
+    edge = nd.binary_dilation(a[:, :, 3] < 20, iterations=3)
+    touching = (dark & edge).sum() / dark.sum()
+    ready = touching < 0.08
+    if ready: print('logo has a light outline, keeping its dark linework (dark on edge %.0f%%)' % (touching * 100))
+    return ready
+
+
+def lift_dark(a):
+    """Make a logo readable on the black thermostat screen without losing its colors.
+    Colored parts that are too dark (navy, maroon, forest green) are lightened in place,
+    keeping their hue, so a navy-and-red logo stays blue and red. Only black/gray parts,
+    which have no color to keep, turn white."""
+    import colorsys
+    rgb = a[:, :, :3].astype(float) / 255
+    lum = rgb[:, :, 0] * .2126 + rgb[:, :, 1] * .7152 + rgb[:, :, 2] * .0722
+    mx, mn = rgb.max(2), rgb.min(2)
+    vis = a[:, :, 3] > 0
+    gray = vis & (mx - mn < 0.12) & (lum < 0.45)          # black / charcoal: no hue to keep
+    a[gray, :3] = 255
+    dark = vis & ~gray & (lum < 0.42)                      # dark but colored
+    if dark.any():
+        px = rgb[dark]
+        out = np.empty_like(px)
+        for i, (r, g, b) in enumerate(px):
+            h, l, s = colorsys.rgb_to_hls(r, g, b)
+            out[i] = colorsys.hls_to_rgb(h, max(l, 0.62), min(1.0, max(s, 0.55)))
+        a[dark, :3] = np.round(out * 255)
+    return a
+
+
+def logo_color(logo):
+    """Most saturated common color in the logo, for small accents. Falls back to Nuve cyan."""
+    a = np.array(logo.convert('RGBA')).reshape(-1, 4).astype(float)
+    a = a[a[:, 3] > 200][:, :3]
+    if len(a) == 0: return '#45e3f7'
+    mx, mn = a.max(1), a.min(1)
+    sat = (mx - mn) / np.maximum(mx, 1)
+    lum = a[:, 0] * .2126 + a[:, 1] * .7152 + a[:, 2] * .0722
+    good = a[(sat > 0.45) & (lum > 85)]
+    if len(good) < 50: return '#45e3f7'
+    q = (good // 32).astype(int)
+    keys, counts = np.unique(q[:, 0] * 64 + q[:, 1] * 8 + q[:, 2], return_counts=True)
+    k = keys[counts.argmax()]
+    sel = good[(q[:, 0] * 64 + q[:, 1] * 8 + q[:, 2]) == k].mean(0)
+    return '#%02x%02x%02x' % tuple(int(v) for v in sel)
+
+
+def brand_color(logo):
+    """Main brand color for the dashboard theme: the most common saturated color in the logo
+    (dark navies count). Black/white/gray logos get a charcoal theme."""
+    a = np.array(logo.convert('RGBA')).reshape(-1, 4).astype(float)
+    a = a[a[:, 3] > 200][:, :3]
+    if len(a):
+        mx, mn = a.max(1), a.min(1)
+        sat = (mx - mn) / np.maximum(mx, 1)
+        good = a[(sat > 0.35) & (mx > 45)]
+        if len(good) >= max(50, 0.04 * len(a)):
+            q = (good // 32).astype(int); key = q[:, 0] * 64 + q[:, 1] * 8 + q[:, 2]
+            keys, counts = np.unique(key, return_counts=True)
+            return tuple(int(v) for v in good[key == keys[counts.argmax()]].mean(0))
+    return (42, 47, 54)
+
+
+def logo_palette(logo):
+    """Up to two distinct brand colors from the logo, most common first (RGB tuples)."""
+    import colorsys
+    a = np.array(logo.convert('RGBA')).reshape(-1, 4).astype(float)
+    a = a[a[:, 3] > 200][:, :3]
+    if not len(a): return []
+    mx, mn = a.max(1), a.min(1)
+    good = a[((mx - mn) / np.maximum(mx, 1) > 0.35) & (mx > 45)]
+    if len(good) < max(50, 0.04 * len(a)): return []
+    q = (good // 32).astype(int); key = q[:, 0] * 64 + q[:, 1] * 8 + q[:, 2]
+    keys, counts = np.unique(key, return_counts=True)
+    cols = []
+    for k in keys[np.argsort(-counts)]:
+        if (key == k).sum() < 0.08 * len(good) and cols: break
+        c = good[key == k].mean(0)
+        h = colorsys.rgb_to_hls(*(c / 255))[0]
+        if all(min(abs(h - colorsys.rgb_to_hls(*(np.array(o) / 255))[0]), 1 - abs(h - colorsys.rgb_to_hls(*(np.array(o) / 255))[0])) > 0.1 for o in cols):
+            cols.append(tuple(int(v) for v in c))
+        if len(cols) == 2: break
+    return cols
+
+
+def on_dark(rgb):
+    """Same hue, light enough to read and glow on the dark page."""
+    import colorsys
+    h, l, s = colorsys.rgb_to_hls(*(np.array(rgb) / 255))
+    r, g, b = colorsys.hls_to_rgb(h, min(max(l, 0.58), 0.72), min(1.0, max(s, 0.6)))
+    return tuple(int(round(v * 255)) for v in (r, g, b))
+
+
+def page_theme(logo, override=None):
+    """CSS colors for the page: their brand for outlines, accents and numbers; Nuve cyan stays on
+    the Nuve wordmark, highlights and buttons. Black/white logos keep the all-Nuve look."""
+    cols = [override] if override else (logo_palette(logo) if logo is not None else [])
+    if not cols:
+        b1 = b2 = (69, 227, 247)
+    else:
+        b1 = on_dark(cols[0]); b2 = on_dark(cols[1]) if len(cols) > 1 else b1
+    hexc = lambda c: '#%02x%02x%02x' % c
+    ink = '#06090c' if (0.2126 * b1[0] + 0.7152 * b1[1] + 0.0722 * b1[2]) > 150 else '#ffffff'
+    return {
+        '{{BRAND}}': hexc(b1), '{{BRAND_RGB}}': '%d,%d,%d' % b1,
+        '{{BRAND2}}': hexc(b2), '{{BRAND2_RGB}}': '%d,%d,%d' % b2,
+        '{{BRAND_INK}}': ink, '{{CHECK_INK}}': ink.replace('#', '%23'),
+    }
+
+
+def make_stat(logo, scale, nx, ny):
+    base = Image.open(os.path.join(TOOLS, 'stat_base.png')).convert('RGBA')
+    base = base.resize((base.width * UP, base.height * UP), Image.LANCZOS)
+    d = ImageDraw.Draw(base)
+    x0, y0, x1, y1 = [v * UP for v in BOX]
+    d.rounded_rectangle((x0, y0, x1, y1), radius=10 * UP, fill=SCREEN + (255,))
+    mw, mh = LOGO_MAX[0] * UP * scale, LOGO_MAX[1] * UP * scale
+    k = min(mw / logo.width, mh / logo.height)
+    w, h = max(1, round(logo.width * k)), max(1, round(logo.height * k))
+    L = logo.resize((w, h), Image.LANCZOS)
+    cx, cy = (BOX_C[0] + nx) * UP, (BOX_C[1] + ny) * UP
+    pos = (int(cx - w / 2), int(cy - h / 2))
+    r, g, b, a = L.split()
+    glow = Image.merge('RGBA', (r, g, b, a.point(lambda p: int(p * 0.45)))).filter(ImageFilter.GaussianBlur(5 * UP))
+    layer = Image.new('RGBA', base.size, (0, 0, 0, 0))
+    layer.alpha_composite(glow, pos)
+    lit = Image.merge('RGBA', (*[c.point(lambda p: int(p * 0.95)) for c in (r, g, b)], a))
+    layer.alpha_composite(lit, pos)
+    base.alpha_composite(layer)
+    return base
+
+
+STAT_C, STAT_R = (266.0, 273.0), 243.0   # stat_base bezel center/radius (1x); the cyan halo sits outside it
+
+
+def tint_halo(stat, rgb):
+    """Recolor the baked-in cyan halo around the stat to the brand color (keeps its softness)."""
+    if tuple(rgb) == (69, 227, 247): return stat
+    k = stat.width / 532
+    a = np.array(stat).astype(float)
+    H, W = a.shape[:2]
+    yy, xx = np.mgrid[0:H, 0:W]
+    d = np.hypot(xx - STAT_C[0] * k, yy - STAT_C[1] * k) / k
+    ring = np.clip((d - STAT_R) / 4, 0, 1)
+    cyan = np.clip((a[..., 2] - a[..., 0]) / 150, 0, 1)
+    w = (ring * cyan)[..., None]
+    v = (np.maximum(a[..., 1], a[..., 2]) / 255)[..., None]
+    a[..., :3] = a[..., :3] * (1 - w) + np.array(rgb, float) * v * w
+    return Image.fromarray(a.round().clip(0, 255).astype(np.uint8), 'RGBA')
+
+
+def make_og(stat, accent, glow=(40, 190, 215)):
+    W, H = 1200, 630
+    yy, xx = np.mgrid[0:H, 0:W].astype(float)
+    # deep graphite with a soft bloom behind the stat (brand color)
+    d = np.hypot((xx - W / 2) / W, (yy - H / 2) / H)
+    bgc = np.array([8, 10, 14], float)
+    bloom = np.array(glow, float) * 0.85
+    t = np.clip(1 - d / 0.55, 0, 1) ** 2.2 * 0.38
+    img = bgc + (bloom - bgc) * t[..., None]
+    # faint diagonal sheen
+    s = np.clip(1 - np.abs((xx - yy * 1.2 - 150) / 260), 0, 1) * 6
+    img = np.clip(img + s[..., None], 0, 255)
+    bg = Image.fromarray(img.astype(np.uint8), 'RGB').convert('RGBA')
+    sh = 525
+    st = stat.resize((round(stat.width * sh / stat.height), sh), Image.LANCZOS)
+    # contact shadow
+    shadow = Image.new('RGBA', bg.size, (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).ellipse((W / 2 - 200, H / 2 + sh / 2 - 40, W / 2 + 200, H / 2 + sh / 2 + 6), fill=(0, 0, 0, 150))
+    bg.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(18)))
+    bg.alpha_composite(st, ((W - st.width) // 2, (H - st.height) // 2))
+    return bg.convert('RGB')
+
+
+def slugify(s):
+    s = re.sub(r'&', ' and ', s.lower())
+    s = re.sub(r'\b(llc|inc|co|corp|ltd)\b\.?', '', s)
+    return re.sub(r'[^a-z0-9]+', '-', s).strip('-')[:40]
+
+
+FLYER_C = (575, 782)              # logo center on assets/protect_base.jpg (stat face)
+FLYER_MAX = (128, 48)
+
+
+def make_flyer(logo):
+    """Smarter Protection flyer (v2 stat) with the contractor logo on the stat face."""
+    base = Image.open(os.path.join(ROOT, 'assets', 'protect_base.jpg')).convert('RGB')
+    k = min(FLYER_MAX[0] / logo.width, FLYER_MAX[1] / logo.height)
+    L = logo.resize((max(1, round(logo.width * k)), max(1, round(logo.height * k))), Image.LANCZOS)
+    base.paste(L, (FLYER_C[0] - L.width // 2, FLYER_C[1] - L.height // 2), L)
+    return base
+
+
+PLUMBING_HTML = """<section class="reveal"><div class="wrap">
+  <div class="eyebrow">Whole-home protection</div>
+  <h2>Thermostats + water sensors.</h2>
+  <p>This is where {{SHORT}} stands apart from HVAC-only shops. The newer Nuve thermostats pair with <strong>wireless water leak sensors</strong> for the drain pan, under sinks and by the water heater. If one picks up a leak, the thermostat tells the homeowner to call {{SHORT}} and your team gets alerted at the same time.</p>
+  <div class="flyer"><img loading="lazy" src="{{FLYER}}" alt="{{SHORT}} smarter protection flyer: thermostats plus water sensors"></div>
+  <ul class="checks">
+    <li><div>A plumbing call before the flood<span>Catch the leak while it's a repair, not a restoration job.</span></div></li>
+    <li><div>A reason to sell protection, not a gadget<span>"{{SHORT}} watches your home 24/7" is an easy story for your techs to tell.</span></div></li>
+  </ul>
+</div></section>
+
+"""
+
+SERVICETITAN_HTML = """<section class="band reveal"><div class="wrap">
+  <img class="st-logo" src="../assets/servicetitan.png" width="480" height="315" alt="ServiceTitan">
+  <div class="eyebrow">Works with ServiceTitan</div>
+  <h2>Plugs into the system you already run.</h2>
+  <p>{{SHORT}} runs on ServiceTitan, and Nuve connects to it, so your team doesn't learn a new process.</p>
+  <div class="st">
+    <div><b>Job sync</b><p>Enter the ServiceTitan job number and the customer's info fills into your Nuve dashboard automatically.</p></div>
+    <div><b>Memberships</b><p>Each membership is linked to the thermostat in that home, so maintenance reminders go out on their own.</p></div>
+    <div><b>Booking</b><p>Customers schedule service right from the thermostat or your branded app instead of searching Google.</p></div>
+  </div>
+</div></section>
+
+"""
+
+
+def items(s):
+    """'A::detail|B' -> [(A, detail), (B, '')]"""
+    out = []
+    for part in (s or '').split('|'):
+        part = part.strip()
+        if not part: continue
+        t, _, d = part.partition('::')
+        out.append((t.strip(), d.strip()))
+    return out
+
+
+def pains_html(pains):
+    if not pains: return ''
+    lis = ''.join(f'<li><div>{html.escape(t)}' + (f'<span>{html.escape(d)}</span>' if d else '') + '</div></li>' for t, d in pains)
+    return f'<ul class="pains">{lis}</ul>'
+
+
+def steps_html(steps):
+    return ''.join(f'<div><span><h3>{html.escape(t)}</h3>' + (f'<p>{html.escape(d)}</p>' if d else '') + '</span></div>' for t, d in steps)
+
+
+def qa_html(qa):
+    if not qa: return ''
+    qs = ''.join(f'<details><summary>{html.escape(q)}</summary><p>{html.escape(a)}</p></details>' for q, a in qa)
+    return ('<section class="band reveal"><div class="wrap"><div class="eyebrow">Your questions</div>'
+            f'<h2>What you asked, answered.</h2><div class="faq">{qs}</div></div></section>\n\n')
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--mode', choices=['cold', 'followup'], default='cold')
+    ap.add_argument('--company', required=True)
+    ap.add_argument('--logo')
+    ap.add_argument('--slug')
+    ap.add_argument('--city', default='')
+    ap.add_argument('--first', default='')
+    ap.add_argument('--hook', default='', help='cold: one personal line under the hero (why you reached out)')
+    ap.add_argument('--met', default='', help='followup: when you met, e.g. "Tuesday" or "this morning"')
+    ap.add_argument('--pains', default='', help='followup: what they told you, "Title::detail|Title"')
+    ap.add_argument('--next', default='', help='followup: agreed next steps, "Step::detail|Step"')
+    ap.add_argument('--qa', default='', help='followup: questions they asked, "Question::Answer|..."')
+    ap.add_argument('--installs', type=int, default=250, help='followup: installs + replacements per year, seeds the ROI calculator')
+    ap.add_argument('--offer', default='', help='followup: time-bound note shown above the calendar')
+    ap.add_argument('--keep-dark', action='store_true')
+    ap.add_argument('--scale', type=float, default=1.0)
+    ap.add_argument('--nudge-x', type=float, default=0)
+    ap.add_argument('--nudge-y', type=float, default=0)
+    ap.add_argument('--color', help='brand color for the dashboard theme, e.g. "#c8102e" (default: from logo)')
+    ap.add_argument('--tile-color', help='flat app-icon tile color, e.g. "#0b2a4a" (default: picked from the logo)')
+    ap.add_argument('--no-videos', action='store_true', help='skip branding the app, stat and dashboard clips')
+    ap.add_argument('--plumbing', action='store_true', help='add the water-sensor section with a branded "Smarter Protection" flyer')
+    ap.add_argument('--servicetitan', action='store_true', help='add the "Works with ServiceTitan" section (they run on ServiceTitan)')
+    ap.add_argument('--short', help='short company name for section copy, e.g. "Apex" (default: --company)')
+    args = ap.parse_args()
+    if 'GITHUB_USER' == C.GITHUB_USER:
+        print('note: tools/config.py GITHUB_USER is not set yet, links will be placeholders')
+
+    slug = args.slug or (slugify(args.company) + ('-recap' if args.mode == 'followup' else ''))
+    out = os.path.join(ROOT, slug); os.makedirs(out, exist_ok=True)
+
+    if args.logo:
+        logo = prep_logo(args.logo, args.keep_dark)
+        accent = logo_color(logo)
+        stat = make_stat(logo, args.scale, args.nudge_x, args.nudge_y)
+    else:
+        logo, accent = None, '#45e3f7'
+        stat = Image.open(os.path.join(TOOLS, 'stat_base.png')).convert('RGBA')
+        stat = stat.resize((stat.width * UP, stat.height * UP), Image.LANCZOS)
+    override = None
+    if args.color:
+        hx = args.color.lstrip('#'); override = tuple(int(hx[i:i + 2], 16) for i in (0, 2, 4))
+    theme = page_theme(prep_logo(args.logo, keep_dark=True) if args.logo else None, override)
+    glow = tuple(int(v) for v in theme['{{BRAND_RGB}}'].split(','))
+    stat = tint_halo(stat, glow)
+    stat.save(os.path.join(out, 'stat.png'), optimize=True)
+    make_og(stat, accent, glow if glow != (69, 227, 247) else (40, 190, 215)).save(os.path.join(out, 'og.jpg'), quality=88)
+    x0, y0, x1, y1 = [v * UP for v in BOX]
+    stat.crop((x0 - 120, y0 - 120, x1 + 120, y1 + 80)).save(os.path.join(out, '_check.png'))
+
+    vids = {k: f'../assets/{k}' for k in ('app.mp4', 'app.jpg', 'alerts.mp4', 'alerts.jpg', 'dashboard.mp4', 'dashboard.jpg',
+                                          'tap.jpg', 'phone.mp4', 'phone.jpg', 'remotediag.mp4', 'remotediag.jpg')}
+    if logo is not None and not args.no_videos:
+        if args.color:
+            h = args.color.lstrip('#'); brand = tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+        else:
+            brand = brand_color(prep_logo(args.logo, keep_dark=True))
+        if args.tile_color: os.environ['NUVE_TILE_COLOR'] = args.tile_color
+        brand_videos.brand_all(prep_logo(args.logo, keep_dark=True), logo, brand, out, bg=brand_videos.logo_bg(args.logo))
+        vids = {k: k for k in vids}
+        print('videos branded, theme color #%02x%02x%02x' % brand)
+
+    co = html.escape(args.company)
+    first = args.first.strip()
+    who = f"it's {first} " if first else "it's "
+    if args.mode == 'followup':
+        sms_body = f"Hi {C.REP_NAME}, {who}from {args.company}. Went through the recap, let's keep it moving."
+        greet = f'{html.escape(first)}, great' if first else 'Great'
+        met = f' {html.escape(args.met)}' if args.met else ''
+    else:
+        sms_body = f"Hi {C.REP_NAME}, {who}from {args.company}. I checked out the Nuve page, let's talk."
+        greet = f'{html.escape(first)}, here' if first else 'Here'
+        met = ''
+    sms = urllib.parse.quote(sms_body)
+    city_line = f' across {html.escape(args.city)}' if args.city else ''
+    tpl_name = 'template_followup.html' if args.mode == 'followup' else 'template_cold.html'
+    tpl = open(os.path.join(TOOLS, tpl_name), encoding='utf-8').read()
+    short = html.escape(args.short or args.company)
+    hook = f'<p class="hook">{html.escape(args.hook)}</p>' if args.hook else ''
+    offer = f'<div class="offer">{html.escape(args.offer)}</div>' if args.offer else ''
+    nxt = items(args.next) or [('Send us your logo', 'Our design team builds your branded thermostat screen and app.'),
+                               ('Pick your first installs', 'Your techs put Nuve on the wall during installs and service calls.'),
+                               ('Go live', f'Repeat service, alerts and messages come straight to {args.company}.')]
+    rep = {
+        **theme,
+        '{{COMPANY}}': co, '{{SHORT}}': short, '{{GREET}}': greet, '{{MET}}': met,
+        '{{CITY_LINE}}': city_line, '{{SLUG}}': slug, '{{HOOK}}': hook, '{{OFFER}}': offer,
+        '{{PAINS}}': pains_html(items(args.pains)), '{{NEXT_STEPS}}': steps_html(nxt),
+        '{{INSTALLS}}': str(max(1, args.installs)),
+        '{{URL}}': f'{BASE_URL}/{slug}/',
+        '{{OG}}': f'{BASE_URL}/{slug}/og.jpg',
+        '{{SMS}}': f'sms:{PHONE}?&body={sms}',
+        '{{ACCENT}}': accent,
+        '{{REP}}': html.escape(C.REP_NAME), '{{REP_EMAIL}}': C.REP_EMAIL, '{{REP_TEL}}': C.REP_PHONE_E164,
+        '{{REP_PHONE}}': C.REP_PHONE_PRETTY, '{{REP_PHOTO}}': '../assets/' + C.REP_PHOTO, '{{BOOKING}}': C.BOOKING_URL,
+        '{{APP_MP4}}': vids['app.mp4'], '{{APP_JPG}}': vids['app.jpg'],
+        '{{ALERTS_MP4}}': vids['alerts.mp4'], '{{ALERTS_JPG}}': vids['alerts.jpg'],
+        '{{DASH_MP4}}': vids['dashboard.mp4'], '{{DASH_JPG}}': vids['dashboard.jpg'],
+        '{{TAP_IMG}}': vids['tap.jpg'],
+        '{{PHONE_MP4}}': vids['phone.mp4'], '{{PHONE_JPG}}': vids['phone.jpg'],
+        '{{RD_MP4}}': vids['remotediag.mp4'], '{{RD_JPG}}': vids['remotediag.jpg'],
+    }
+    extra = []
+    if args.plumbing:
+        if logo is not None:
+            make_flyer(logo).save(os.path.join(out, 'protect.jpg'), quality=92)
+            fly = 'protect.jpg'
+        else:
+            fly = '../assets/protect_base.jpg'
+        extra.append(PLUMBING_HTML.replace('{{SHORT}}', short).replace('{{FLYER}}', fly))
+    if args.servicetitan:
+        extra.append(SERVICETITAN_HTML.replace('{{SHORT}}', short))
+    rep['{{EXTRA_SECTIONS}}'] = ''.join(extra)
+    rep['{{QA}}'] = qa_html(items(args.qa))
+    for k in ('{{EXTRA_SECTIONS}}', '{{QA}}'):           # sections first, so their own placeholders get filled
+        tpl = tpl.replace(k, rep.pop(k))
+    for k, v in rep.items(): tpl = tpl.replace(k, v)
+    left = re.findall(r'\{\{[A-Z_0-9]+\}\}', tpl)
+    if left: raise SystemExit(f'unfilled placeholders: {sorted(set(left))}')
+    # cache-bust this page's own files so a rebuild shows up right away (same file names every build)
+    import hashlib
+    def bust(m):
+        name = m.group(2); fp = os.path.join(out, name)
+        if not os.path.isfile(fp): return m.group(0)
+        v = hashlib.md5(open(fp, 'rb').read()).hexdigest()[:8]
+        return f'{m.group(1)}{name}?v={v}"'
+    tpl = re.sub(r'((?:src|href|poster|data-src|content)="(?:https://[^"]*/' + re.escape(slug) + r'/)?)([\w.-]+\.(?:png|jpg|mp4))"', bust, tpl)
+    open(os.path.join(out, 'index.html'), 'w', encoding='utf-8').write(tpl)
+    print(f'built {slug}/ ({args.mode})  accent {accent}  logo {logo.size if logo else None}')
+    print(f'{BASE_URL}/{slug}/')
+    print(f'review: {slug}/_check.png, {slug}/og.jpg' + (f', {slug}/_check_videos.png, {slug}/_check_more.png' if os.path.exists(os.path.join(out, '_check_videos.png')) else ''))
+
+
+if __name__ == '__main__':
+    main()
