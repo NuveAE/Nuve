@@ -27,7 +27,7 @@ alerts.mp4/jpg (logo on the stat face) and dashboard.mp4/jpg (brand color + logo
 _check_videos.png (one frame of each, for review; not committed). --color "#hex" overrides
 the dashboard color; --no-videos skips this and uses the stock clips.
 """
-import argparse, html, os, re, urllib.parse
+import argparse, json, html, os, re, urllib.parse
 from collections import deque
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -338,6 +338,57 @@ def qa_html(qa):
             f'<h2>What you asked, answered.</h2><div class="faq">{qs}</div></div></section>\n\n')
 
 
+def quote_pricing_html(short, q):
+    """Pricing section from a per-quote JSON (--pricing-file): the numbers the rep actually quoted.
+    Keys: plan_monthly, plan_perk, ramp{monthly,months,perk}, hardware[{name,model,plan,alc,detail,badge,img}], sensors."""
+    import pricing as P
+    alc = sum(p for _, _, p in P.FEATURES)
+    m = lambda v: f'${v:,}'
+    plan = q.get('plan_monthly', P.PLAN_MONTHLY)
+    hw = ''.join(
+        f'<div class="hw{" hot" if h.get("badge") else ""}">' + (f'<i>{html.escape(h["badge"])}</i>' if h.get('badge') else '') +
+        (f'<img loading="lazy" src="../assets/{h["img"]}" alt="{html.escape(h["model"])} thermostat">' if h.get('img') else '') +
+        f'<span class="v">{html.escape(h["name"])}</span><b>{m(h["plan"])}</b><small>/unit on {html.escape(P.PLAN_NAME)}</small>'
+        f'<small class="alt">{m(h["alc"])}/unit à la carte</small>'
+        f'<h3>{html.escape(h["model"])}</h3><p>{html.escape(h.get("detail", ""))}</p></div>'
+        for h in q['hardware'])
+    cols = min(len(q['hardware']), 3)
+    sensors = (f'<p class="fine">Extra water-leak and temperature/humidity sensors: {m(q["sensors"])}/unit.</p>' if q.get('sensors') else '')
+    inc = ''.join(f'<li>{html.escape(f)}</li>' for f, _, _ in P.FEATURES)
+    rows = ''.join(f'<tr><td>{html.escape(f)}<span>{html.escape(d)}</span></td><td>{m(p)}<small>/mo</small></td></tr>'
+                   for f, d, p in P.FEATURES)
+    perk = f'<div class="save">{html.escape(q["plan_perk"])}</div>' if q.get('plan_perk') else ''
+    r = q.get('ramp')
+    ramp = ''
+    if r:
+        ramp = (f'<div class="plan ramp"><i>Easier start</i>'
+                f'<div class="ph"><h3>{html.escape(P.PLAN_NAME)}: ramp-up</h3><span>Same features, lower start while you roll it out</span></div>'
+                f'<div class="pp"><b>{m(r["monthly"])}</b><small>/mo for the first {r["months"]} months</small><s>then {m(plan)}/mo</s></div>'
+                + (f'<div class="save">{html.escape(r["perk"])}</div>' if r.get('perk') else '') + '</div>')
+    return f"""<section class="reveal" id="pricing"><div class="wrap">
+  <div class="eyebrow">Your options</div>
+  <h2>What it costs {short}.</h2>
+  <p>Pick your thermostats, then pick how you want to run the software. Thermostats cost less on {html.escape(P.PLAN_NAME)} than à la carte.</p>
+  <h3 class="sub">Thermostats</h3>
+  <div class="hws" style="grid-template-columns:repeat({cols},1fr)">{hw}</div>{sensors}
+  <h3 class="sub">Software</h3>
+  <div class="plan">
+    <i>Best value</i>
+    <div class="ph"><h3>{html.escape(P.PLAN_NAME)}</h3><span>Every feature, one price</span></div>
+    <div class="pp"><b>{m(plan)}</b><small>/mo</small><s>{m(alc)}/mo à la carte</s></div>
+    <ul class="checks tight">{inc}</ul>
+    {perk}
+  </div>
+  {ramp}
+  <details class="alc">
+    <summary><span><b>À la carte</b>Only want a few features? Build your own plan.</span></summary>
+    <table>{rows}<tr class="tot"><td>All {len(P.FEATURES)} features à la carte</td><td>{m(alc)}<small>/mo</small></td></tr></table>
+  </details>
+</div></section>
+
+"""
+
+
 def pricing_html(short):
     """Thermostats + Always On E vs a la carte, from tools/pricing.py."""
     import pricing as P
@@ -402,6 +453,7 @@ def main():
     ap.add_argument('--plumbing', action='store_true', help='add the water-sensor section with a branded "Smarter Protection" flyer')
     ap.add_argument('--servicetitan', action='store_true', help='add the "Works with ServiceTitan" section (they run on ServiceTitan)')
     ap.add_argument('--pricing', action='store_true', help='followup: add the pricing section (thermostats, Always On E, a la carte) from tools/pricing.py')
+    ap.add_argument('--pricing-file', help='followup: JSON of the numbers you quoted this prospect (implies --pricing); overrides tools/pricing.py for this page only')
     ap.add_argument('--short', help='short company name for section copy, e.g. "Apex" (default: --company)')
     args = ap.parse_args()
     if 'GITHUB_USER' == C.GITHUB_USER:
@@ -464,6 +516,7 @@ def main():
                                ('Go live', f'Repeat service, alerts and messages come straight to {args.company}.')]
     rep = {
         **theme,
+        '{{ST_LI}}': ('    <li><div>Works with ServiceTitan<span>Service requests sync to your CRM by Job ID, so nothing is retyped.</span></div></li>\n' if args.servicetitan else ''),
         '{{COMPANY}}': co, '{{SHORT}}': short, '{{GREET}}': greet, '{{MET}}': met,
         '{{CITY_LINE}}': city_line, '{{SLUG}}': slug, '{{HOOK}}': hook, '{{OFFER}}': offer,
         '{{PAINS}}': pains_html(items(args.pains)), '{{NEXT_STEPS}}': steps_html(nxt),
@@ -493,7 +546,11 @@ def main():
         extra.append(SERVICETITAN_HTML.replace('{{SHORT}}', short))
     rep['{{EXTRA_SECTIONS}}'] = ''.join(extra)
     rep['{{QA}}'] = qa_html(items(args.qa))
-    rep['{{PRICING}}'] = pricing_html(short) if args.pricing else ''
+    if args.pricing_file:
+        args.pricing = True
+        with open(args.pricing_file) as f: rep['{{PRICING}}'] = quote_pricing_html(short, json.load(f))
+    else:
+        rep['{{PRICING}}'] = pricing_html(short) if args.pricing else ''
     if args.pricing and '{{PRICING}}' not in tpl: raise SystemExit('--pricing: this template has no {{PRICING}} slot')
     for k in ('{{EXTRA_SECTIONS}}', '{{PRICING}}', '{{QA}}'):           # sections first, so their own placeholders get filled
         tpl = tpl.replace(k, rep.pop(k))
