@@ -555,6 +555,7 @@ def main():
     if args.pricing and '{{PRICING}}' not in tpl: raise SystemExit('--pricing: this template has no {{PRICING}} slot')
     if getattr(args, 'no_pains', False):
         tpl = re.sub(r'<section class="reveal"><div class="wrap">\s*<div class="eyebrow">What you told me</div>.*?</section>\n*', '', tpl, count=1, flags=re.S)
+        tpl = tpl.replace('  <div class="eyebrow">How Nuve fixes it</div>\n', '', 1)   # nothing left for it to "fix"
     for k in ('{{EXTRA_SECTIONS}}', '{{PRICING}}', '{{QA}}'):           # sections first, so their own placeholders get filled
         tpl = tpl.replace(k, rep.pop(k))
     for k, v in rep.items(): tpl = tpl.replace(k, v)
