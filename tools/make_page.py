@@ -441,6 +441,7 @@ def main():
     ap.add_argument('--next', default='', help='followup: agreed next steps, "Step::detail|Step"')
     ap.add_argument('--qa', default='', help='followup: questions they asked, "Question::Answer|..."')
     ap.add_argument('--installs', type=int, default=250, help='followup: installs + replacements per year, seeds the ROI calculator')
+    ap.add_argument('--no-pains', action='store_true', help='followup: leave out the "What\'s costing you today" section')
     ap.add_argument('--no-calc', action='store_true', help='followup: leave out the "Your numbers" calculator section')
     ap.add_argument('--offer', default='', help='followup: time-bound note shown above the calendar')
     ap.add_argument('--keep-dark', action='store_true')
@@ -552,6 +553,8 @@ def main():
     else:
         rep['{{PRICING}}'] = pricing_html(short) if args.pricing else ''
     if args.pricing and '{{PRICING}}' not in tpl: raise SystemExit('--pricing: this template has no {{PRICING}} slot')
+    if getattr(args, 'no_pains', False):
+        tpl = re.sub(r'<section class="reveal"><div class="wrap">\s*<div class="eyebrow">What you told me</div>.*?</section>\n*', '', tpl, count=1, flags=re.S)
     for k in ('{{EXTRA_SECTIONS}}', '{{PRICING}}', '{{QA}}'):           # sections first, so their own placeholders get filled
         tpl = tpl.replace(k, rep.pop(k))
     for k, v in rep.items(): tpl = tpl.replace(k, v)
