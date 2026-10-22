@@ -310,6 +310,36 @@ SERVICETITAN_HTML = """<section class="band reveal"><div class="wrap">
 """
 
 
+CROSSPROMO_HTML = """<section class="reveal"><div class="wrap">
+  <div class="eyebrow">One install, every trade</div>
+  <h2>Your HVAC install sells your next job.</h2>
+  <p>{{SHORT}} does more than HVAC. Once your logo is on the wall and your app is on the homeowner's phone, every other trade you offer is one tap away, in front of a customer who already trusts you.</p>
+  <div class="st">
+    <div><b>Your brand stays on the wall</b><p>Your logo lives on every thermostat screen, so the homeowner sees {{SHORT}} every day, not a manufacturer's name.</p></div>
+    <div><b>All your services in your app</b><p>Your custom app puts remodels, additions and every trade you run next to their HVAC system, with your number and booking built in.</p></div>
+    <div><b>Turn one job into the next</b><p>An HVAC customer becomes your kitchen, bath or addition customer without paying for a new lead.</p></div>
+    <div><b>Know when to reach out</b><p>Dashboard access shows how every client's system is running, so you have a real reason to call before they shop around.</p></div>
+  </div>
+  <p class="fine">Want to push promos right on the thermostat screen? Add Messaging, or get it included with Always On E.</p>
+</div></section>
+
+"""
+
+MARKETING_HTML = """<section class="band reveal"><div class="wrap">
+  <div class="eyebrow">Our marketing team, on your side</div>
+  <h2>We help {{SHORT}} launch it right.</h2>
+  <p>A new product line only works if your customers know about it. Our in-house marketing team builds the content for your rollout, in your brand, so you can focus on the work.</p>
+  <div class="st">
+    <div><b>Branded launch content</b><p>Videos and graphics of your thermostat, your app and your logo, like the clips on this page, ready for your socials and website.</p></div>
+    <div><b>Announce it to your customers</b><p>Copy and visuals to tell your existing clients about your new smart thermostat line and what it does for them.</p></div>
+    <div><b>Sales tools for the field</b><p>Leave-behinds and talking points so your team can offer it on every estimate and install.</p></div>
+    <div><b>A brand that looks bigger</b><p>Consistent, polished content that puts {{SHORT}} on the level of the biggest names in town.</p></div>
+  </div>
+</div></section>
+
+"""
+
+
 def items(s):
     """'A::detail|B' -> [(A, detail), (B, '')]"""
     out = []
@@ -345,19 +375,40 @@ def quote_pricing_html(short, q):
     alc = sum(p for _, _, p in P.FEATURES)
     m = lambda v: f'${v:,}'
     plan = q.get('plan_monthly', P.PLAN_MONTHLY)
-    hw = ''.join(
-        f'<div class="hw{" hot" if h.get("badge") else ""}">' + (f'<i>{html.escape(h["badge"])}</i>' if h.get('badge') else '') +
-        (f'<img loading="lazy" src="../assets/{h["img"]}" alt="{html.escape(h["model"])} thermostat">' if h.get('img') else '') +
-        f'<span class="v">{html.escape(h["name"])}</span><b>{m(h["plan"])}</b><small>/unit on {html.escape(P.PLAN_NAME)}</small>'
-        f'<small class="alt">{m(h["alc"])}/unit à la carte</small>'
-        f'<h3>{html.escape(h["model"])}</h3><p>{html.escape(h.get("detail", ""))}</p></div>'
-        for h in q['hardware'])
-    cols = min(len(q['hardware']), 3)
+    if q.get('hardware'):
+        hw = ''.join(
+            f'<div class="hw{" hot" if h.get("badge") else ""}">' + (f'<i>{html.escape(h["badge"])}</i>' if h.get('badge') else '') +
+            (f'<img loading="lazy" src="../assets/{h["img"]}" alt="{html.escape(h["model"])} thermostat">' if h.get('img') else '') +
+            f'<span class="v">{html.escape(h["name"])}</span><b>{m(h["plan"])}</b><small>/unit on {html.escape(P.PLAN_NAME)}</small>'
+            f'<small class="alt">{m(h["alc"])}/unit à la carte</small>'
+            f'<h3>{html.escape(h["model"])}</h3><p>{html.escape(h.get("detail", ""))}</p></div>'
+            for h in q['hardware'])
+        cols = min(len(q['hardware']), 3)
+    else:   # no per-quote hardware: standard thermostat prices from pricing.py
+        hw = ''.join(
+            f'<div class="hw{" hot" if badge == "Most popular" else ""}">' + (f'<i>{html.escape(badge)}</i>' if badge else '') +
+            (f'<img loading="lazy" src="../assets/{img}" alt="{html.escape(model)} thermostat">' if img else '') +
+            f'<span class="v">{html.escape(name)}</span><b>{m(price)}</b><small>/unit</small>'
+            f'<h3>{html.escape(model)}</h3><p>{html.escape(detail)}</p></div>'
+            for name, model, price, detail, badge, img in P.HARDWARE)
+        cols = min(len(P.HARDWARE), 3)
+    c = q.get('custom')
+    custom = ''
+    if c:
+        price = dict((f, p) for f, _, p in P.FEATURES)
+        desc = dict((f, d) for f, d, _ in P.FEATURES)
+        c_alc = sum(price.get(f, 0) for f in c['features'])
+        c_inc = ''.join(f'<li><div>{html.escape(f)}' + (f'<span>{html.escape(desc[f])}</span>' if f in desc else '') + '</div></li>' for f in c['features'])
+        c_save = c.get('perk') or (f'{m(c_alc - c["monthly"])}/mo less than these features à la carte' if c_alc > c['monthly'] else '')
+        custom = (f'<div class="plan"><i>{html.escape(c.get("badge", "Built for " + short))}</i>'
+                  f'<div class="ph"><h3>{html.escape(c.get("name", "Your custom plan"))}</h3><span>{html.escape(c.get("tagline", "Custom pricing for " + short))}</span></div>'
+                  f'<div class="pp"><b>{m(c["monthly"])}</b><small>/mo</small>' + (f'<s>{m(c_alc)}/mo à la carte</s>' if c_alc > c['monthly'] else '') + '</div>'
+                  f'<ul class="checks tight">{c_inc}</ul>' + (f'<div class="save">{html.escape(c_save)}</div>' if c_save else '') + '</div>')
     sensors = (f'<p class="fine">Extra water-leak and temperature/humidity sensors: {m(q["sensors"])}/unit.</p>' if q.get('sensors') else '')
     inc = ''.join(f'<li>{html.escape(f)}</li>' for f, _, _ in P.FEATURES)
     rows = ''.join(f'<tr><td>{html.escape(f)}<span>{html.escape(d)}</span></td><td>{m(p)}<small>/mo</small></td></tr>'
                    for f, d, p in P.FEATURES)
-    perk = f'<div class="save">{html.escape(q["plan_perk"])}</div>' if q.get('plan_perk') else ''
+    perk = f'<div class="save">{html.escape(q["plan_perk"])}</div>' if q.get('plan_perk') else (f'<div class="save">{m(alc - plan)}/mo less than buying all {len(P.FEATURES)} features separately</div>' if alc > plan else '')
     r = q.get('ramp')
     ramp = ''
     if r:
@@ -368,12 +419,13 @@ def quote_pricing_html(short, q):
     return f"""<section class="reveal" id="pricing"><div class="wrap">
   <div class="eyebrow">Your options</div>
   <h2>What it costs {short}.</h2>
-  <p>Pick your thermostats, then pick how you want to run the software. Thermostats cost less on {html.escape(P.PLAN_NAME)} than à la carte.</p>
+  <p>Pick your thermostats, then pick how you want to run the software.{(' Thermostats cost less on ' + html.escape(P.PLAN_NAME) + ' than à la carte.') if q.get('hardware') else ' One flat monthly rate, no per-thermostat software fees.'}</p>
   <h3 class="sub">Thermostats</h3>
   <div class="hws" style="grid-template-columns:repeat({cols},1fr)">{hw}</div>{sensors}
   <h3 class="sub">Software</h3>
-  <div class="plan">
-    <i>Best value</i>
+  {custom}
+  <div class="plan{' alt' if custom else ''}">
+    <i>{'Everything included' if custom else 'Best value'}</i>
     <div class="ph"><h3>{html.escape(P.PLAN_NAME)}</h3><span>Every feature, one price</span></div>
     <div class="pp"><b>{m(plan)}</b><small>/mo</small><s>{m(alc)}/mo à la carte</s></div>
     <ul class="checks tight">{inc}</ul>
@@ -455,6 +507,8 @@ def main():
     ap.add_argument('--servicetitan', action='store_true', help='add the "Works with ServiceTitan" section (they run on ServiceTitan)')
     ap.add_argument('--pricing', action='store_true', help='followup: add the pricing section (thermostats, Always On E, a la carte) from tools/pricing.py')
     ap.add_argument('--pricing-file', help='followup: JSON of the numbers you quoted this prospect (implies --pricing); overrides tools/pricing.py for this page only')
+    ap.add_argument('--crosspromo', action='store_true', help='add the "One install, every trade" section (builders/GCs who run other trades)')
+    ap.add_argument('--marketing', action='store_true', help='add the "Our marketing team" rollout-content section')
     ap.add_argument('--short', help='short company name for section copy, e.g. "Apex" (default: --company)')
     args = ap.parse_args()
     if 'GITHUB_USER' == C.GITHUB_USER:
@@ -545,6 +599,10 @@ def main():
         extra.append(PLUMBING_HTML.replace('{{SHORT}}', short).replace('{{FLYER}}', fly))
     if args.servicetitan:
         extra.append(SERVICETITAN_HTML.replace('{{SHORT}}', short))
+    if args.crosspromo:
+        extra.append(CROSSPROMO_HTML.replace('{{SHORT}}', short))
+    if args.marketing:
+        extra.append(MARKETING_HTML.replace('{{SHORT}}', short))
     rep['{{EXTRA_SECTIONS}}'] = ''.join(extra)
     rep['{{QA}}'] = qa_html(items(args.qa))
     if args.pricing_file:
