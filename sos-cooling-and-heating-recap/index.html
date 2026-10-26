@@ -252,7 +252,7 @@ footer a{color:#8b97a3}
   <img class="stat" src="stat.png?v=74b21d9e" alt="Nuve smart thermostat with the SOS Cooling &amp; Heating logo" width="532" height="543">
   <div class="eyebrow" style="font-size:11px;letter-spacing:.08em;white-space:nowrap">Built by contractors, for contractors</div>
   <h1 style="margin-top:10px">Picking up<br><span class="hl">where we left off.</span></h1>
-  <p>Zoheb, great talking through the demo. Here's SOS Cooling &amp; Heating on the wall again, plus everything we covered in one place: what you told me, how Nuve fixes it, and what it's worth to your shop across Orlando.</p>
+  <p>Zoheb, great talking through the demo. Here's SOS Cooling &amp; Heating on the wall again, plus everything we covered in one place: what you told me, how Nuve fixes it, and what it costs.</p>
   
   <div class="ctas">
     <a class="btn btn-p" href="#book">Lock in next step</a>
@@ -313,24 +313,6 @@ footer a{color:#8b97a3}
   <div class="feat reveal">
     <div class="media"><video muted loop playsinline preload="none" data-src="../assets/backlight.mp4"></video></div>
     <div class="txt"><h3>Custom backlight</h3><p>Match the glow to your brand colors. It's a small detail homeowners notice and show off.</p></div>
-  </div>
-</div></section>
-
-<section class="band reveal"><div class="wrap">
-  <div class="eyebrow">Your numbers</div>
-  <h2>What this is worth to SOS.</h2>
-  <p>Slide these to match your shop. It's an estimate, so use your own numbers.</p>
-  <div class="calc" id="calc">
-    <label>Nuve installs per year <output id="o-n"></output></label><input type="range" id="i-n" min="25" max="2000" step="25" value="250">
-    <label>Homes that tap you for service each year <output id="o-p"></output></label><input type="range" id="i-p" min="10" max="100" step="5" value="40">
-    <label>Average service ticket <output id="o-t"></output></label><input type="range" id="i-t" min="100" max="1500" step="25" value="350">
-    <label>What a lead costs you today <output id="o-l"></output></label><input type="range" id="i-l" min="25" max="300" step="5" value="100">
-    <div class="res">
-      <div><b id="r-rev">$0</b><span>repeat service revenue a year that comes straight to you</span></div>
-      <div><b id="r-calls">0</b><span>service calls without buying a lead</span></div>
-      <div><b id="r-saved">$0</b><span>lead spend you don't have to make</span></div>
-    </div>
-    <small>Every year you keep installing, these homes stack on top of last year's.</small>
   </div>
 </div></section>
 
@@ -463,15 +445,6 @@ footer a{color:#8b97a3}
     bar.classList.toggle('show', y > 420 && b > window.innerHeight * 0.6);
   }
   window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
-  // ROI calculator
-  var $ = function(id){ return document.getElementById(id); };
-  var money = function(v){ return '$' + Math.round(v).toLocaleString(); };
-  function calc(){
-    var n=+$('i-n').value, p=+$('i-p').value/100, tk=+$('i-t').value, l=+$('i-l').value, calls=Math.round(n*p);
-    $('o-n').textContent=n.toLocaleString(); $('o-p').textContent=Math.round(p*100)+'%'; $('o-t').textContent=money(tk); $('o-l').textContent=money(l);
-    $('r-calls').textContent=calls.toLocaleString(); $('r-rev').textContent=money(calls*tk); $('r-saved').textContent=money(calls*l);
-  }
-  ['i-n','i-p','i-t','i-l'].forEach(function(id){ $(id).addEventListener('input', calc); }); calc();
   // testimonial dots
   var rail = document.getElementById('rail'), dots = document.getElementById('dots'), n = rail.children.length;
   for (var i=0;i<n;i++) dots.appendChild(document.createElement('i'));

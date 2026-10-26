@@ -621,6 +621,11 @@ def main():
         tpl, n1 = re.subn(r'<section class="band reveal"><div class="wrap">\s*<div class="eyebrow">Your numbers</div>.*?</section>\s*', '', tpl, count=1, flags=re.S)
         tpl, n2 = re.subn(r'  // ROI calculator.*?(?=  // testimonial dots)', '', tpl, count=1, flags=re.S)
         if not (n1 and n2): raise SystemExit('--no-calc: calculator section not found in template')
+        # the hero promises "what it's worth to your shop"; that was the calculator, so reword it
+        tail = 'and what it costs' if args.pricing else ''
+        hero_old = "what you told me, how Nuve fixes it, and what it's worth to your shop" + city_line
+        hero_new = ('what you told me, how Nuve fixes it, ' + tail) if tail else 'what you told me and how Nuve fixes it'
+        tpl = tpl.replace(hero_old.replace("'", "&#x27;"), hero_new).replace(hero_old, hero_new)
     left = re.findall(r'\{\{[A-Z_0-9]+\}\}', tpl)
     if left: raise SystemExit(f'unfilled placeholders: {sorted(set(left))}')
     # cache-bust this page's own files so a rebuild shows up right away (same file names every build)
