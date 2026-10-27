@@ -457,7 +457,7 @@ def pricing_html(short):
                    for f, d, p in P.FEATURES)
     return f"""<section class="reveal" id="pricing"><div class="wrap">
   <div class="eyebrow">Pricing</div>
-  <h2>What it costs {short}.</h2>
+  <h2>{f'What it costs {short}.' if short else 'Simple, flat pricing.'}</h2>
   <p>Pick your thermostats, then pick how you want to run the software. One flat monthly rate, no per-thermostat software fees.</p>
   <h3 class="sub">Thermostats</h3>
   <div class="hws">{hw}</div>
@@ -480,7 +480,7 @@ def pricing_html(short):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--mode', choices=['cold', 'followup'], default='cold')
+    ap.add_argument('--mode', choices=['cold', 'followup', 'generic'], default='cold', help='generic: one product page for any prospect (no logo, all 3 stats + pricing); use --company Nuve')
     ap.add_argument('--audience', choices=['contractor', 'owner'], default='contractor', help='followup only: owner = property/venue owner copy (no contractor lead math)')
     ap.add_argument('--company', required=True)
     ap.add_argument('--logo')
@@ -556,12 +556,13 @@ def main():
         greet = f'{html.escape(first)}, great' if first else 'Great'
         met = f' {html.escape(args.met)}' if args.met else ''
     else:
-        sms_body = f"Hi {C.REP_NAME}, {who}from {args.company}. I checked out the Nuve page, let's talk."
+        sms_body = (f"Hi {C.REP_NAME}, I checked out the Nuve page, let's talk." if args.mode == 'generic'
+                    else f"Hi {C.REP_NAME}, {who}from {args.company}. I checked out the Nuve page, let's talk.")
         greet = f'{html.escape(first)}, here' if first else 'Here'
         met = ''
     sms = urllib.parse.quote(sms_body)
     city_line = f' across {html.escape(args.city)}' if args.city else ''
-    tpl_name = 'template_cold.html' if args.mode == 'cold' else ('template_followup_owner.html' if args.audience == 'owner' else 'template_followup.html')
+    tpl_name = 'template_generic.html' if args.mode == 'generic' else 'template_cold.html' if args.mode == 'cold' else ('template_followup_owner.html' if args.audience == 'owner' else 'template_followup.html')
     tpl = open(os.path.join(TOOLS, tpl_name), encoding='utf-8').read()
     short = html.escape(args.short or args.company)
     hook = f'<p class="hook">{html.escape(args.hook)}</p>' if args.hook else ''
@@ -609,7 +610,8 @@ def main():
         args.pricing = True
         with open(args.pricing_file) as f: rep['{{PRICING}}'] = quote_pricing_html(short, json.load(f))
     else:
-        rep['{{PRICING}}'] = pricing_html(short) if args.pricing else ''
+        if args.mode == 'generic': args.pricing = True
+        rep['{{PRICING}}'] = pricing_html('' if args.mode == 'generic' else short) if args.pricing else ''
     if args.pricing and '{{PRICING}}' not in tpl: raise SystemExit('--pricing: this template has no {{PRICING}} slot')
     if getattr(args, 'no_pains', False):
         tpl = re.sub(r'<section class="reveal"><div class="wrap">\s*<div class="eyebrow">What you told me</div>.*?</section>\n*', '', tpl, count=1, flags=re.S)
