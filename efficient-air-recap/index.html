@@ -360,24 +360,6 @@ footer a{color:#8b97a3}
   <div class="cost"><b>$2,088,000</b><span>a year in recurring revenue if 30% of your 20,000 customers (6,000 homes) were on a $29/month plan</span></div>
 </div></section>
 
-<section class="band reveal"><div class="wrap">
-  <div class="eyebrow">Your numbers</div>
-  <h2>What this is worth to Efficient Air.</h2>
-  <p>Slide these to match your shop. It's an estimate, so use your own numbers.</p>
-  <div class="calc" id="calc">
-    <label>Nuve installs per year <output id="o-n"></output></label><input type="range" id="i-n" min="25" max="2000" step="25" value="250">
-    <label>Homes that tap you for service each year <output id="o-p"></output></label><input type="range" id="i-p" min="10" max="100" step="5" value="40">
-    <label>Average service ticket <output id="o-t"></output></label><input type="range" id="i-t" min="100" max="1500" step="25" value="350">
-    <label>What a lead costs you today <output id="o-l"></output></label><input type="range" id="i-l" min="25" max="300" step="5" value="100">
-    <div class="res">
-      <div><b id="r-rev">$0</b><span>repeat service revenue a year that comes straight to you</span></div>
-      <div><b id="r-calls">0</b><span>service calls without buying a lead</span></div>
-      <div><b id="r-saved">$0</b><span>lead spend you don't have to make</span></div>
-    </div>
-    <small>Every year you keep installing, these homes stack on top of last year's.</small>
-  </div>
-</div></section>
-
 <section class="band reveal"><div class="wrap"><div class="eyebrow">Your questions</div><h2>What you asked, answered.</h2><div class="faq"><details><summary>Can Nuve use our customer data?</summary><p>Your contractor and homeowner data is stored on AWS and is not shared with third parties, other contractors or any outside organization. Our legal team can put specific reassurances in writing.</p></details><details><summary>What happens to the branding if we stop?</summary><p>Worst case, the thermostats switch to the Nuve logo. They are never reassigned to a competitor, and we&#x27;ll write that into the agreement.</p></details><details><summary>Will elderly customers be able to use it?</summary><p>Yes. We can simplify it so tapping your logo shows only your phone number, one tap to call.</p></details></div></div></section>
 
 <section class="reveal"><div class="wrap">
@@ -398,7 +380,7 @@ footer a{color:#8b97a3}
 <section class="band reveal"><div class="wrap">
   <div class="eyebrow">Where we landed</div>
   <h2>Next steps for Efficient Air.</h2>
-  <div class="steps"><div><span><h3>Service agreement (no pricing)</h3><p>Your team and legal review the data and branding terms.</p></span></div><div><span><h3>Written protections</h3><p>Nuve legal adds language: if we ever part ways, thermostats switch to the Nuve logo only, never to a competitor.</p></span></div><div><span><h3>ROI sheet</h3><p>Engagement and retention numbers. Run yours in the calculator on this page.</p></span></div><div><span><h3>Reconvene</h3><p>Once you&#x27;ve reviewed the agreement, pick a plan and map the rollout.</p></span></div></div>
+  <div class="steps"><div><span><h3>Service agreement (no pricing)</h3><p>Your team and legal review the data and branding terms.</p></span></div><div><span><h3>Written protections</h3><p>Nuve legal adds language: if we ever part ways, thermostats switch to the Nuve logo only, never to a competitor.</p></span></div><div><span><h3>ROI sheet</h3><p>Engagement and retention numbers, sent along with the agreement.</p></span></div><div><span><h3>Reconvene</h3><p>Once you&#x27;ve reviewed the agreement, pick a plan and map the rollout.</p></span></div></div>
 </div></section>
 
 <section class="reveal">
@@ -486,15 +468,6 @@ footer a{color:#8b97a3}
     bar.classList.toggle('show', y > 420 && b > window.innerHeight * 0.6);
   }
   window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
-  // ROI calculator
-  var $ = function(id){ return document.getElementById(id); };
-  var money = function(v){ return '$' + Math.round(v).toLocaleString(); };
-  function calc(){
-    var n=+$('i-n').value, p=+$('i-p').value/100, tk=+$('i-t').value, l=+$('i-l').value, calls=Math.round(n*p);
-    $('o-n').textContent=n.toLocaleString(); $('o-p').textContent=Math.round(p*100)+'%'; $('o-t').textContent=money(tk); $('o-l').textContent=money(l);
-    $('r-calls').textContent=calls.toLocaleString(); $('r-rev').textContent=money(calls*tk); $('r-saved').textContent=money(calls*l);
-  }
-  ['i-n','i-p','i-t','i-l'].forEach(function(id){ $(id).addEventListener('input', calc); }); calc();
   // testimonial dots
   var rail = document.getElementById('rail'), dots = document.getElementById('dots'), n = rail.children.length;
   for (var i=0;i<n;i++) dots.appendChild(document.createElement('i'));
