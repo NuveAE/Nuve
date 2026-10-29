@@ -485,7 +485,24 @@ PH_REF = (259, 460, 41)                 # phone left, right, top at the settled 
 PH_C, PH_MAX = (360, 263), (92, 32)     # logo box: under the "Holding" pill, between the arc ends, above Fan/Mode
 
 
-def brand_phone(logo_light, out_dir):
+PH_DIAL = (359.5, 215.5)                # dial center at the settled frame (centered on the phone)
+PH_RING = (71, 100)                     # ring + knob + glow band; inside 71 is the "Good" pill and +/- buttons
+PH_RING_YMAX = 284                      # stop above the Fan/Mode cards between the ring ends
+
+
+def mirror_arc(f, s, cx, cy):
+    """Mirror only the dial ring left-right, so the arc fills from the bottom left, over the top, to the right."""
+    h, w = f.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    d = np.hypot(xx - cx, yy - cy)
+    m = (d >= PH_RING[0] * s) & (d <= PH_RING[1] * s) & (yy <= cy + (PH_RING_YMAX - PH_DIAL[1]) * s)
+    mx = (2 * np.float32(cx) - xx).astype(np.float32)
+    flip = cv2.remap(f, mx, yy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    a = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.2)[..., None]   # soft seam
+    return (flip * a + f * (1 - a)).astype(np.uint8)
+
+
+def brand_phone(logo_light, out_dir, arc_ltr=False):
     fr, fps = read('phone.mp4')
     L0 = fit(logo_light, PH_MAX[0] * 2, PH_MAX[1] * 2)
     boxes, ks = [], []
@@ -504,6 +521,10 @@ def brand_phone(logo_light, out_dir):
         s = (b[1] - b[0]) / (PH_REF[1] - PH_REF[0])
         cx = (b[0] + b[1]) / 2 + (PH_C[0] - (PH_REF[0] + PH_REF[1]) / 2) * s
         cy = b[2] + (PH_C[1] - PH_REF[2]) * s
+        if arc_ltr:
+            dx = (b[0] + b[1]) / 2 + (PH_DIAL[0] - (PH_REF[0] + PH_REF[1]) / 2) * s
+            dy = b[2] + (PH_DIAL[1] - PH_REF[2]) * s
+            g = mirror_arc(g, s, dx, dy)
         L = fit(L0, PH_MAX[0] * s, PH_MAX[1] * s)
         if ks[i] > 0.02:
             paste(g, L, int(round(cx - L.width / 2)), int(round(cy - L.height / 2)), opacity=min(1.0, ks[i]))
@@ -527,12 +548,12 @@ def brand_remote(logo_light, out_dir):
     return out
 
 
-def brand_all(logo_color, logo_light, brand, out_dir, bg=None):
+def brand_all(logo_color, logo_light, brand, out_dir, bg=None, arc_ltr=False):
     a = brand_app(logo_light, brand, out_dir, logo_color=logo_color)
     b = brand_alerts(logo_light, out_dir)
     c = brand_dashboard(logo_color, brand, out_dir)
     t = brand_tap(logo_light, out_dir)
-    p = brand_phone(logo_light, out_dir)
+    p = brand_phone(logo_light, out_dir, arc_ltr=arc_ltr)
     r = brand_remote(logo_light, out_dir)
     # review sheet: one settled frame from each clip, plus zooms on the small logos (gitignored)
     th = 300
