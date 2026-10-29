@@ -567,7 +567,7 @@ def main():
     ap.add_argument('--plan-price', type=int, default=29, help='partnership: example monthly price (default 29)')
     ap.add_argument('--customers', type=int, help='partnership: customer database size, for the on-a-plan math')
     ap.add_argument('--plan-goal', type=int, default=30, help='partnership: %% of customers on a plan for the math (default 30)')
-    ap.add_argument('--arc-ltr', action='store_true', help='phone clip: temperature arc fills from the bottom left, over the top, to the right')
+    ap.add_argument('--arc-ltr', action='store_true', help='phone + alerts clips: temperature arc fills from the bottom left, over the top, to the right')
     ap.add_argument('--marketing', action='store_true', help='add the "Our marketing team" rollout-content section')
     ap.add_argument('--short', help='short company name for section copy, e.g. "Apex" (default: --company)')
     args = ap.parse_args()

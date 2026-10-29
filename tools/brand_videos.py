@@ -316,9 +316,27 @@ def brand_app(logo_light, brand, out_dir, logo_color=None):
 AL_REF = 65
 AL_WORD = (390, 301, 46, 12)          # "nuve" on the stat face at AL_REF
 AL_MAX = (80, 24)                      # logo box (stays clear of the menu/calendar icons)
+AL_DIAL = (-1.0, 250.0)                # dial center: x offset from the wordmark center, absolute y
+AL_RING = (51, 70)                     # ring + knob; inside is the stats row / Auto-Cooling bar, outside the clock + wifi
+AL_RING_BELOW = 40                     # stop above the menu/calendar icons
 
 
-def brand_alerts(logo_light, out_dir):
+def popup_box(f, cx, cy, r=60):
+    """Bounding box (relative to the dial center) of the gray alert popup, or None if it isn't up."""
+    x0, y0 = int(cx - r), int(cy - r)
+    if x0 < 0 or y0 < 0 or x0 + 2 * r > f.shape[1] or y0 + 2 * r > f.shape[0]: return None   # dial still sliding in
+    hsv = cv2.cvtColor(f[y0:y0 + 2 * r, x0:x0 + 2 * r], cv2.COLOR_BGR2HSV)
+    m = ((hsv[..., 1] < 40) & (hsv[..., 2] > 70) & (hsv[..., 2] < 150)).astype(np.uint8)
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    n, _, st, _ = cv2.connectedComponentsWithStats(m)
+    if n < 2: return None
+    k = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+    x, y, w, h, a = st[k]
+    if a < 300: return None
+    return (x - r - 3, y - r - 3, x + w - r + 3, y + h - r + 3)
+
+
+def brand_alerts(logo_light, out_dir, arc_ltr=False):
     fr, fps = read('alerts.mp4')
     x, y, w, h = AL_WORD; P = 4
     cref = cyanness(fr[AL_REF])
@@ -346,6 +364,10 @@ def brand_alerts(logo_light, out_dir):
     out = []
     for i, f in enumerate(fr):
         g = f.copy(); fx = int(round(X[i]))
+        if arc_ltr:
+            dcx = X[i] + w / 2 + AL_DIAL[0]
+            g = mirror_arc(g, 1.0, dcx, AL_DIAL[1], ring=AL_RING, ybelow=AL_RING_BELOW,
+                           keep=popup_box(f, dcx, AL_DIAL[1]))
         c = cyanness(f)
         k = float(np.clip(c[y:y + h, fx:fx + w].max() / rpeak, 0, 1)) if 0 <= fx < f.shape[1] - w else 0
         if k > 0.03:
@@ -490,12 +512,14 @@ PH_RING = (71, 100)                     # ring + knob + glow band; inside 71 is 
 PH_RING_YMAX = 284                      # stop above the Fan/Mode cards between the ring ends
 
 
-def mirror_arc(f, s, cx, cy):
+def mirror_arc(f, s, cx, cy, ring=PH_RING, ybelow=PH_RING_YMAX - PH_DIAL[1], keep=None):
     """Mirror only the dial ring left-right, so the arc fills from the bottom left, over the top, to the right."""
     h, w = f.shape[:2]
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
     d = np.hypot(xx - cx, yy - cy)
-    m = (d >= PH_RING[0] * s) & (d <= PH_RING[1] * s) & (yy <= cy + (PH_RING_YMAX - PH_DIAL[1]) * s)
+    m = (d >= ring[0] * s) & (d <= ring[1] * s) & (yy <= cy + ybelow * s)
+    if keep is not None:                # (dx0, dy0, dx1, dy1) around the center left untouched, e.g. a popup
+        m &= ~((xx >= cx + keep[0]) & (xx <= cx + keep[2]) & (yy >= cy + keep[1]) & (yy <= cy + keep[3]))
     mx = (2 * np.float32(cx) - xx).astype(np.float32)
     flip = cv2.remap(f, mx, yy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
     a = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.2)[..., None]   # soft seam
@@ -550,7 +574,7 @@ def brand_remote(logo_light, out_dir):
 
 def brand_all(logo_color, logo_light, brand, out_dir, bg=None, arc_ltr=False):
     a = brand_app(logo_light, brand, out_dir, logo_color=logo_color)
-    b = brand_alerts(logo_light, out_dir)
+    b = brand_alerts(logo_light, out_dir, arc_ltr=arc_ltr)
     c = brand_dashboard(logo_color, brand, out_dir)
     t = brand_tap(logo_light, out_dir)
     p = brand_phone(logo_light, out_dir, arc_ltr=arc_ltr)
