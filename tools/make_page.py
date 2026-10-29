@@ -325,6 +325,60 @@ CROSSPROMO_HTML = """<section class="reveal"><div class="wrap">
 
 """
 
+PARTNER_HTML = """<section class="reveal"><div class="wrap">
+  <div class="eyebrow">The partnership</div>
+  <h2>Your brand in every home. Your customers on a plan.</h2>
+  <p>Nuve isn't a gadget you resell. It's a retention and marketing channel with {{SHORT}}'s name on it, living on the wall of every home you service.</p>
+  <div class="st">
+    <div><b>Your brand, every day</b><p>Your logo stays on the screen, in sleep mode and every time they touch the temperature. Your own app is in the App Store and Google Play under your name. No Nuve branding anywhere.</p></div>
+    <div><b>A line that never closes</b><p>The homeowner taps your logo to call, text or book. Point it at your online booking as soon as it's live.</p></div>
+    <div><b>Messages that get seen</b><p>Homeowners have to acknowledge messages on the thermostat and app, so you get a 100% open rate on offers, reminders and announcements. Contractors report $12,500 to $20,000 a month in shoulder-season revenue from this alone.</p></div>
+    <div><b>Problems caught early</b><p>Alerts and remote performance checks flag issues before they become a breakdown, so you're the first call, not the third quote.</p></div>
+  </div>
+</div></section>
+
+"""
+
+AGREEMENT_HTML = """<style>
+.plan{margin:22px 0 6px;border:1.5px solid var(--brand);border-radius:20px;padding:20px;background:linear-gradient(180deg,rgba(var(--brand-rgb),.12),var(--card))}
+.plan .tag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.plan h3{font-size:22px;margin:4px 0 2px}
+.plan .pr{font-size:34px;font-weight:800;letter-spacing:-.03em;color:var(--brand)}.plan .pr small{font-size:15px;color:var(--muted);font-weight:500}
+.plan ul{list-style:none;display:grid;gap:8px;margin-top:12px;font-size:15px}
+.plan li{padding-left:24px;position:relative}.plan li:before{content:"";position:absolute;left:0;top:4px;width:14px;height:14px;border-radius:50%;background:var(--brand)}
+.why{display:grid;gap:10px;margin-top:18px}
+.why div{display:grid;grid-template-columns:1fr 1fr;gap:12px;border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--card);font-size:14px}
+.why div b{color:var(--text)}.why div span{color:var(--muted)}
+@media(max-width:560px){.why div{grid-template-columns:1fr;gap:4px}}
+</style>
+<section class="reveal"><div class="wrap">
+  <div class="eyebrow">Monthly service agreements</div>
+  <h2>Give homeowners a reason to sign up.</h2>
+  <p>Contractors on Nuve use the thermostat as the reason to start a monthly plan. Peak Heating and Air gives the thermostat away and bundles it with a monthly monitoring subscription sold on breakdown prevention. Team Bob's launched its own branded thermostat and offers the smart features as a membership perk. Others install it free on 7 to 10 year old systems to lock in the replacement before it fails.</p>
+  <div class="plan">
+    <div class="tag">Example plan · you set the price and terms</div>
+    <h3>{{PLAN_NAME}}</h3>
+    <div class="pr">${{PLAN_PRICE}}<small> / month</small></div>
+    <ul>
+      <li>{{SHORT}} smart thermostat installed</li>
+      <li>24/7 system monitoring with breakdown alerts</li>
+      <li>Remote performance checks every spring and fall</li>
+      <li>Two maintenance visits a year</li>
+      <li>Priority booking with one tap on the thermostat</li>
+    </ul>
+  </div>
+  <h3 style="margin-top:26px">Why homeowners say yes</h3>
+  <div class="why">
+    <div><b>"Tell me before it breaks."</b><span>Breakdown alerts and remote performance checks</span></div>
+    <div><b>"I want to control it from my phone."</b><span>Your branded app: temperature, schedules and vacation mode</span></div>
+    <div><b>"Who do I call?"</b><span>Your logo on the screen, one tap to call or book</span></div>
+    <div><b>"Is the air in my house OK?"</b><span>Air quality, humidity and CO/CO2 readings, plus water leak sensors</span></div>
+  </div>
+  {{PLAN_MATH}}
+</div></section>
+
+"""
+
 MARKETING_HTML = """<section class="band reveal"><div class="wrap">
   <div class="eyebrow">Our marketing team, on your side</div>
   <h2>We help {{SHORT}} launch it right.</h2>
@@ -508,6 +562,11 @@ def main():
     ap.add_argument('--pricing', action='store_true', help='followup: add the pricing section (thermostats, Always On E, a la carte) from tools/pricing.py')
     ap.add_argument('--pricing-file', help='followup: JSON of the numbers you quoted this prospect (implies --pricing); overrides tools/pricing.py for this page only')
     ap.add_argument('--crosspromo', action='store_true', help='add the "One install, every trade" section (builders/GCs who run other trades)')
+    ap.add_argument('--partnership', action='store_true', help='followup: lead with brand + retention and a sample monthly service agreement (pair with --no-pains)')
+    ap.add_argument('--plan-name', help='partnership: example plan name (default "<short> Comfort Club")')
+    ap.add_argument('--plan-price', type=int, default=29, help='partnership: example monthly price (default 29)')
+    ap.add_argument('--customers', type=int, help='partnership: customer database size, for the on-a-plan math')
+    ap.add_argument('--plan-goal', type=int, default=30, help='partnership: %% of customers on a plan for the math (default 30)')
     ap.add_argument('--marketing', action='store_true', help='add the "Our marketing team" rollout-content section')
     ap.add_argument('--short', help='short company name for section copy, e.g. "Apex" (default: --company)')
     args = ap.parse_args()
@@ -602,6 +661,16 @@ def main():
         extra.append(SERVICETITAN_HTML.replace('{{SHORT}}', short))
     if args.crosspromo:
         extra.append(CROSSPROMO_HTML.replace('{{SHORT}}', short))
+    if args.partnership:
+        pname = html.escape(args.plan_name or f'{short} Comfort Club')
+        math = ''
+        if args.customers:
+            homes = round(args.customers * args.plan_goal / 100)
+            yr = homes * args.plan_price * 12
+            math = (f'<div class="cost"><b>${yr:,}</b><span>a year in recurring revenue if {args.plan_goal}% of your '
+                    f'{args.customers:,} customers ({homes:,} homes) were on a ${args.plan_price}/month plan</span></div>')
+        extra.insert(0, AGREEMENT_HTML.replace('{{SHORT}}', short).replace('{{PLAN_NAME}}', pname)
+                     .replace('{{PLAN_PRICE}}', str(args.plan_price)).replace('{{PLAN_MATH}}', math))
     if args.marketing:
         extra.append(MARKETING_HTML.replace('{{SHORT}}', short))
     rep['{{EXTRA_SECTIONS}}'] = ''.join(extra)
@@ -616,6 +685,10 @@ def main():
     if getattr(args, 'no_pains', False):
         tpl = re.sub(r'<section class="reveal"><div class="wrap">\s*<div class="eyebrow">What you told me</div>.*?</section>\n*', '', tpl, count=1, flags=re.S)
         tpl = tpl.replace('  <div class="eyebrow">How Nuve fixes it</div>\n', '', 1)   # nothing left for it to "fix"
+    if getattr(args, 'partnership', False):
+        tpl = tpl.replace('<section class="band"><div class="wrap">\n', PARTNER_HTML.replace('{{SHORT}}', short) + '<section class="band"><div class="wrap">\n', 1)
+        tpl = tpl.replace("what you told me, how Nuve fixes it, and what it's worth to your shop{{CITY_LINE}}",
+                          "how a partnership with Nuve puts your brand in every home, how contractors turn it into a monthly service agreement, and what it's worth to your shop{{CITY_LINE}}", 1)
     for k in ('{{EXTRA_SECTIONS}}', '{{PRICING}}', '{{QA}}'):           # sections first, so their own placeholders get filled
         tpl = tpl.replace(k, rep.pop(k))
     for k, v in rep.items(): tpl = tpl.replace(k, v)
