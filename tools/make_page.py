@@ -440,11 +440,7 @@ def quote_pricing_html(short, q):
         cols = min(len(q['hardware']), 3)
     else:   # no per-quote hardware: standard thermostat prices from pricing.py
         hw = ''.join(
-            f'<div class="hw{" hot" if badge == "Most popular" else ""}">' + (f'<i>{html.escape(badge)}</i>' if badge else '') +
-            (f'<img loading="lazy" src="../assets/{img}" alt="{html.escape(model)} thermostat">' if img else '') +
-            f'<span class="v">{html.escape(name)}</span><b>{m(price)}</b><small>/unit</small>'
-            f'<h3>{html.escape(model)}</h3><p>{html.escape(detail)}</p></div>'
-            for name, model, price, detail, badge, img in P.HARDWARE)
+            hw_card(*h) for h in P.HARDWARE)
         cols = min(len(P.HARDWARE), 3)
     c = q.get('custom')
     custom = ''
@@ -495,27 +491,84 @@ def quote_pricing_html(short, q):
 """
 
 
-def pricing_html(short):
+def hw_card(name, model, price, detail, badge, img):
+    """One thermostat price card; pre-order models also show their price after launch (pricing.LAUNCH_PRICE)."""
+    import pricing as P
+    later = getattr(P, 'LAUNCH_PRICE', {}).get(name)
+    later_html = (f'<small style="color:var(--brand);font-weight:700;margin-top:2px">${later[0]:,} after {html.escape(later[1])} launch</small>'
+                  if later else '')
+    return (f'<div class="hw{" hot" if badge == "Most popular" else ""}">' + (f'<i>{html.escape(badge)}</i>' if badge else '') +
+            (f'<img loading="lazy" src="../assets/{img}" alt="{html.escape(model)} thermostat">' if img else '') +
+            f'<span class="v">{html.escape(name)}</span><b>${price:,}</b><small>/unit</small>{later_html}'
+            f'<h3>{html.escape(model)}</h3><p>{html.escape(detail)}</p></div>')
+
+
+def lineup_html():
+    """Overview page: all thermostats as showcase cards, with the pre-order price lock called out."""
+    import pricing as P
+    feats = {
+        'V1': ['Your logo + contact info on screen', 'Branded app for the homeowner', 'Custom backlight in your colors'],
+        'V2': ['Everything in V1', 'Water leak sensor included', 'Air / humidity sensor included'],
+        'V3': ['The next-generation Nuve stat', 'Your brand on screen and in the app', 'Lock in pre-order pricing now'],
+    }
+    cards = ''
+    for name, model, price, detail, badge, img in P.HARDWARE:
+        later = getattr(P, 'LAUNCH_PRICE', {}).get(name)
+        hot = ' hot' if badge == 'Most popular' else ' pre' if later else ''
+        lis = ''.join(f'<li>{html.escape(f)}</li>' for f in feats.get(name, []))
+        price_html = f'<b>${price:,}</b><small>/unit</small>'
+        if later:
+            price_html = (f'<b>${price:,}</b><small>/unit pre-order</small>'
+                          f'<em>${later[0]:,}/unit after {html.escape(later[1])} launch</em>')
+        cards += (f'<div class="lu{hot}">' + (f'<i>{html.escape(badge)}</i>' if badge else '') +
+                  f'<img loading="lazy" src="../assets/{img}" alt="{html.escape(model)} thermostat">'
+                  f'<div class="lu-t"><span class="v">{html.escape(name)}</span><h3>{html.escape(model)}</h3>'
+                  f'<div class="lu-p">{price_html}</div><p>{html.escape(detail)}</p><ul>{lis}</ul></div></div>')
+    pre = ''
+    for name, (lp, when) in getattr(P, 'LAUNCH_PRICE', {}).items():
+        hw = next((h for h in P.HARDWARE if h[0] == name), None)
+        if not hw: continue
+        now, save = hw[2], lp - hw[2]
+        pre = f"""<div class="preorder" id="preorder">
+    <div class="eyebrow">Pre-order pricing</div>
+    <h3>{html.escape(hw[1])} is <span class="hl">${now:,}</span> today. <span class="later">${lp:,}</span> at launch.</h3>
+    <p>{html.escape(name)} ships in {html.escape(when)}. Pre-orders placed before launch lock in ${now:,} per unit. Once it's released, the price goes to ${lp:,}.</p>
+    <label class="po-l" for="po">Units you'd pre-order <b id="po-n">100</b></label>
+    <input id="po" type="range" min="10" max="1000" step="10" value="100">
+    <div class="po-out"><div><span>At launch price</span><b id="po-a">${lp*100:,}</b></div><div><span>Pre-order price</span><b id="po-b">${now*100:,}</b></div><div class="win"><span>You keep</span><b id="po-s">${save*100:,}</b></div></div>
+    <a class="btn btn-p" href="#book" style="width:100%;margin-top:16px">Reserve pre-order units</a>
+  </div>
+  <script>(function(){{var r=document.getElementById('po');if(!r)return;var f=function(v){{return '$'+v.toLocaleString('en-US')}};
+  function u(){{var n=+r.value;document.getElementById('po-n').textContent=n;document.getElementById('po-a').textContent=f(n*{lp});
+  document.getElementById('po-b').textContent=f(n*{now});document.getElementById('po-s').textContent=f(n*{save});}}r.addEventListener('input',u);u();}})();</script>"""
+    return f"""<section class="band reveal" id="lineup"><div class="wrap">
+  <div class="eyebrow">The lineup</div>
+  <h2>Three thermostats. One brand on the wall: yours.</h2>
+  <p>Every model carries your logo and runs the same Nuve software, so you can match the stat to the job and the budget.</p>
+  <div class="lus">{cards}</div>
+  {pre}
+</div></section>
+
+"""
+
+
+def pricing_html(short, hardware=True):
     """Thermostats + Always On E vs a la carte, from tools/pricing.py."""
     import pricing as P
     alc = sum(p for _, _, p in P.FEATURES)
     m = lambda v: f'${v:,}'
     hw = ''.join(
-        f'<div class="hw{" hot" if badge == "Most popular" else ""}">' + (f'<i>{html.escape(badge)}</i>' if badge else '') +
-        (f'<img loading="lazy" src="../assets/{img}" alt="{html.escape(model)} thermostat">' if img else '') +
-        f'<span class="v">{html.escape(name)}</span><b>{m(price)}</b><small>/unit</small>'
-        f'<h3>{html.escape(model)}</h3><p>{html.escape(detail)}</p></div>'
-        for name, model, price, detail, badge, img in P.HARDWARE)
+        hw_card(*h) for h in P.HARDWARE)
     inc = ''.join(f'<li>{html.escape(f)}</li>' for f, _, _ in P.FEATURES)
     rows = ''.join(f'<tr><td>{html.escape(f)}<span>{html.escape(d)}</span></td><td>{m(p)}<small>/mo</small></td></tr>'
                    for f, d, p in P.FEATURES)
     return f"""<section class="reveal" id="pricing"><div class="wrap">
   <div class="eyebrow">Pricing</div>
   <h2>{f'What it costs {short}.' if short else 'Simple, flat pricing.'}</h2>
-  <p>Pick your thermostats, then pick how you want to run the software. One flat monthly rate, no per-thermostat software fees.</p>
-  <h3 class="sub">Thermostats</h3>
+  <p>{'Pick your thermostats, then pick how you want to run the software. ' if hardware else 'Thermostat prices are above. '}One flat monthly rate, no per-thermostat software fees.</p>
+{f"""  <h3 class="sub">Thermostats</h3>
   <div class="hws">{hw}</div>
-  <h3 class="sub">Software</h3>
+""" if hardware else ""}  <h3 class="sub">Software</h3>
   <div class="plan">
     <i>Best value</i>
     <div class="ph"><h3>{html.escape(P.PLAN_NAME)}</h3><span>Every feature, one price</span></div>
@@ -534,7 +587,7 @@ def pricing_html(short):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--mode', choices=['cold', 'followup', 'generic'], default='cold', help='generic: one product page for any prospect (no logo, all 3 stats + pricing); use --company Nuve')
+    ap.add_argument('--mode', choices=['cold', 'followup', 'generic', 'overview'], default='cold', help='generic: one product page for any prospect (no logo, all 3 stats + pricing); use --company Nuve')
     ap.add_argument('--audience', choices=['contractor', 'owner'], default='contractor', help='followup only: owner = property/venue owner copy (no contractor lead math)')
     ap.add_argument('--company', required=True)
     ap.add_argument('--logo')
@@ -616,13 +669,13 @@ def main():
         greet = f'{html.escape(first)}, great' if first else 'Great'
         met = f' {html.escape(args.met)}' if args.met else ''
     else:
-        sms_body = (f"Hi {C.REP_NAME}, I checked out the Nuve page, let's talk." if args.mode == 'generic'
+        sms_body = (f"Hi {C.REP_NAME}, I went through the Nuve page, let's talk." if args.mode in ('generic', 'overview')
                     else f"Hi {C.REP_NAME}, {who}from {args.company}. I checked out the Nuve page, let's talk.")
         greet = f'{html.escape(first)}, here' if first else 'Here'
         met = ''
     sms = urllib.parse.quote(sms_body)
     city_line = f' across {html.escape(args.city)}' if args.city else ''
-    tpl_name = 'template_generic.html' if args.mode == 'generic' else 'template_cold.html' if args.mode == 'cold' else ('template_followup_owner.html' if args.audience == 'owner' else 'template_followup.html')
+    tpl_name = 'template_overview.html' if args.mode == 'overview' else 'template_generic.html' if args.mode == 'generic' else 'template_cold.html' if args.mode == 'cold' else ('template_followup_owner.html' if args.audience == 'owner' else 'template_followup.html')
     tpl = open(os.path.join(TOOLS, tpl_name), encoding='utf-8').read()
     short = html.escape(args.short or args.company)
     hook = f'<p class="hook">{html.escape(args.hook)}</p>' if args.hook else ''
@@ -680,8 +733,10 @@ def main():
         args.pricing = True
         with open(args.pricing_file) as f: rep['{{PRICING}}'] = quote_pricing_html(short, json.load(f))
     else:
-        if args.mode == 'generic': args.pricing = True
-        rep['{{PRICING}}'] = pricing_html('' if args.mode == 'generic' else short) if args.pricing else ''
+        if args.mode in ('generic', 'overview'): args.pricing = True
+        rep['{{PRICING}}'] = (pricing_html('', hardware=False) if args.mode == 'overview'
+                              else pricing_html('' if args.mode == 'generic' else short) if args.pricing else '')
+    rep['{{LINEUP}}'] = lineup_html() if args.mode == 'overview' else ''
     if args.pricing and '{{PRICING}}' not in tpl: raise SystemExit('--pricing: this template has no {{PRICING}} slot')
     if getattr(args, 'no_pains', False):
         tpl = re.sub(r'<section class="reveal"><div class="wrap">\s*<div class="eyebrow">What you told me</div>.*?</section>\n*', '', tpl, count=1, flags=re.S)
@@ -690,7 +745,7 @@ def main():
         tpl = tpl.replace('<section class="band"><div class="wrap">\n', PARTNER_HTML.replace('{{SHORT}}', short) + '<section class="band"><div class="wrap">\n', 1)
         tpl = tpl.replace("what you told me, how Nuve fixes it, and what it's worth to your shop{{CITY_LINE}}",
                           "how a partnership with Nuve puts your brand in every home, how contractors turn it into a monthly service agreement, and what it's worth to your shop{{CITY_LINE}}", 1)
-    for k in ('{{EXTRA_SECTIONS}}', '{{PRICING}}', '{{QA}}'):           # sections first, so their own placeholders get filled
+    for k in ('{{EXTRA_SECTIONS}}', '{{PRICING}}', '{{QA}}', '{{LINEUP}}'):           # sections first, so their own placeholders get filled
         tpl = tpl.replace(k, rep.pop(k))
     for k, v in rep.items(): tpl = tpl.replace(k, v)
     if args.no_calc:

@@ -20,5 +20,8 @@ FEATURES = [
 HARDWARE = [
     ('V1', 'Sofia V1', 179, 'Branded with your logo and contact info', '', 'stat-v1.png'),
     ('V2', 'Sofia AI V2', 279, 'Comes with 2 sensors: water leak + air/humidity', 'Most popular', 'stat-v2.png'),
-    ('V3', 'Sofia Pro V3', 99, 'Pre-order now, ships Q1 2027', 'Pre-order', 'stat-v3.png'),
+    ('V3', 'Sofia Pro V3', 99, 'Pre-order price, ships Q1 2027', 'Pre-order', 'stat-v3.png'),
 ]
+
+# Price after launch, for models on pre-order: {name: (price, when)}. Shown next to the pre-order price.
+LAUNCH_PRICE = {'V3': (149, 'Q1 2027')}
