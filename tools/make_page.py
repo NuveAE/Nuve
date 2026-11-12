@@ -541,7 +541,7 @@ def lineup_html():
   <script>(function(){{var r=document.getElementById('po');if(!r)return;var f=function(v){{return '$'+v.toLocaleString('en-US')}};
   function u(){{var n=+r.value;document.getElementById('po-n').textContent=n;document.getElementById('po-a').textContent=f(n*{lp});
   document.getElementById('po-b').textContent=f(n*{now});document.getElementById('po-s').textContent=f(n*{save});}}r.addEventListener('input',u);u();}})();</script>"""
-    return f"""<section class="band reveal" id="lineup"><div class="wrap">
+    return f"""<section class="reveal" id="lineup"><div class="wrap">
   <div class="eyebrow">The lineup</div>
   <h2>Three thermostats. One brand on the wall: yours.</h2>
   <p>Every model carries your logo and runs the same Nuve software, so you can match the stat to the job and the budget.</p>
