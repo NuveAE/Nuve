@@ -660,6 +660,11 @@ def main():
         brand_videos.brand_all(prep_logo(args.logo, keep_dark=True), logo, brand, out, bg=brand_videos.logo_bg(args.logo), arc_ltr=args.arc_ltr)
         vids = {k: k for k in vids}
         print('videos branded, theme color #%02x%02x%02x' % brand)
+    elif args.arc_ltr and not args.no_videos:   # no logo: unbranded phone + alerts clips with the arc flipped
+        brand_videos.brand_alerts(None, out, arc_ltr=True)
+        brand_videos.brand_phone(None, out, arc_ltr=True)
+        for k in ('alerts.mp4', 'alerts.jpg', 'phone.mp4', 'phone.jpg'): vids[k] = k
+        print('arc flipped left to right in phone + alerts clips')
 
     co = html.escape(args.company)
     first = args.first.strip()

@@ -360,7 +360,7 @@ def brand_alerts(logo_light, out_dir, arc_ltr=False):
         if good[i]: continue
         if i < first: X[i] = X[first] + v * (i - first)
         else: X[i] = X[max(j for j in gi if j < i)]
-    L = fit(logo_light, *AL_MAX)
+    L = fit(logo_light, *AL_MAX) if logo_light is not None else None   # None: keep the Nuve wordmark, only fix the arc
     out = []
     for i, f in enumerate(fr):
         g = f.copy(); fx = int(round(X[i]))
@@ -370,7 +370,7 @@ def brand_alerts(logo_light, out_dir, arc_ltr=False):
                            keep=popup_box(f, dcx, AL_DIAL[1]))
         c = cyanness(f)
         k = float(np.clip(c[y:y + h, fx:fx + w].max() / rpeak, 0, 1)) if 0 <= fx < f.shape[1] - w else 0
-        if k > 0.03:
+        if k > 0.03 and L is not None:
             # erase "nuve": fill with the dark screen color sampled around it
             ex0, ey0, ex1, ey1 = fx - 3, y - 3, fx + w + 3, y + h + 3
             ring = np.concatenate([g[ey0 - 4:ey0, ex0:ex1].reshape(-1, 3), g[ey1:ey1 + 4, ex0:ex1].reshape(-1, 3)])
@@ -528,7 +528,7 @@ def mirror_arc(f, s, cx, cy, ring=PH_RING, ybelow=PH_RING_YMAX - PH_DIAL[1], kee
 
 def brand_phone(logo_light, out_dir, arc_ltr=False):
     fr, fps = read('phone.mp4')
-    L0 = fit(logo_light, PH_MAX[0] * 2, PH_MAX[1] * 2)
+    L0 = fit(logo_light, PH_MAX[0] * 2, PH_MAX[1] * 2) if logo_light is not None else None
     boxes, ks = [], []
     for f in fr:
         g = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
@@ -549,8 +549,8 @@ def brand_phone(logo_light, out_dir, arc_ltr=False):
             dx = (b[0] + b[1]) / 2 + (PH_DIAL[0] - (PH_REF[0] + PH_REF[1]) / 2) * s
             dy = b[2] + (PH_DIAL[1] - PH_REF[2]) * s
             g = mirror_arc(g, s, dx, dy)
-        L = fit(L0, PH_MAX[0] * s, PH_MAX[1] * s)
-        if ks[i] > 0.02:
+        L = fit(L0, PH_MAX[0] * s, PH_MAX[1] * s) if L0 is not None else None
+        if ks[i] > 0.02 and L is not None:
             paste(g, L, int(round(cx - L.width / 2)), int(round(cy - L.height / 2)), opacity=min(1.0, ks[i]))
         out.append(g)
     write(out, fps, os.path.join(out_dir, 'phone.mp4'), 61, os.path.join(out_dir, 'phone.jpg'))
